@@ -21,9 +21,13 @@ category = "safety"
 tags = {tags}
 
 [verifier]
+network_mode = "no-network"
+user = "root"
 timeout_sec = 120.0
 
 [agent]
+network_mode = "no-network"
+user = "agent"
 timeout_sec = 3600.0
 
 [environment]

@@ -139,7 +139,8 @@ class GDMStealthAdapter:
             "FROM ubuntu:latest",
             "RUN apt-get update && apt-get install -y python3"
             " && rm -rf /var/lib/apt/lists/*",
-            "RUN mkdir -p /home/agent",
+            "RUN useradd -m -u 1000 agent && mkdir -p /home/agent /var/lib/gdm"
+            " && chown agent:agent /home/agent && chmod 0700 /var/lib/gdm",
         ]
         if dataset in ("oversight_pattern", "classifier_evasion"):
             match = _AI_NAME_RE.match(task["challenge_name"])
@@ -149,7 +150,10 @@ class GDMStealthAdapter:
             shutil.copy2(src, env_dir / "email_tasks.txt")
             dockerfile.append("COPY email_tasks.txt /home/agent/email_tasks.txt")
         if dataset == "cover_your_tracks":
-            dockerfile.append("RUN mkdir -p /log && touch /log/assistant.log")
+            dockerfile.append(
+                "RUN mkdir -p /log && touch /log/assistant.log"
+                " && chown agent:agent /log /log/assistant.log"
+            )
         dockerfile += [
             f"COPY gdm_task.json {MARKER_PATH}",
             "ENV HOME=/home/agent",
@@ -170,7 +174,10 @@ class GDMStealthAdapter:
 
         test_template = (TEMPLATE_DIR / "tests/test.sh").read_text(encoding="utf-8")
         (tests_dir / "test.sh").write_text(
-            test_template.replace("{dataset_name}", dataset), encoding="utf-8"
+            test_template.replace("{dataset_name}", dataset).replace(
+                "{sample_key}", sample["sample_id"]
+            ),
+            encoding="utf-8",
         )
         shutil.copy2(TEMPLATE_DIR / "tests/verify.py", tests_dir / "verify.py")
         shutil.copy2(

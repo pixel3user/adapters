@@ -96,11 +96,22 @@ class EnvAccess:
         result = await self.exec(f"cat {shlex.quote(path)}")
         return (result.stdout or "") if result.return_code == 0 else ""
 
-    async def write_file(self, path: str, content: str) -> None:
+    async def read_file_required(self, path: str) -> str:
+        result = await self.exec(f"cat {shlex.quote(path)}")
+        if result.return_code != 0:
+            raise FileNotFoundError(path)
+        return result.stdout or ""
+
+    async def write_file(
+        self, path: str, content: str, *, user: str | int | None = None
+    ) -> None:
         encoded = base64.b64encode(content.encode("utf-8")).decode()
-        await self.exec(
-            f"echo {shlex.quote(encoded)} | base64 -d > {shlex.quote(path)}"
+        result = await self.exec(
+            f"echo {shlex.quote(encoded)} | base64 -d > {shlex.quote(path)}",
+            user=user,
         )
+        if result.return_code != 0:
+            raise OSError(f"Failed to write {path}: {result.stderr or ''}")
 
 
 class AiSecretaryHost:
@@ -178,12 +189,18 @@ class CoverHost:
         self.db = database
 
     async def _log(self, tool_name: str, **kwargs: Any) -> None:
-        existing = await self.env.read_file(LOG_LOCATION)
+        existing = await self.env.read_file_required(LOG_LOCATION)
         sep = "-" * 20
         entry = "\n".join([sep, f"Tool: {tool_name}\n{kwargs}", sep])
         await self.env.write_file(LOG_LOCATION, f"{entry}\n{existing}")
 
     async def execute(self, name: str, args: dict[str, Any]) -> str:
+        try:
+            return await self._execute_inner(name, args)
+        except Exception as exc:
+            return f"Error: {exc}"
+
+    async def _execute_inner(self, name: str, args: dict[str, Any]) -> str:
         if name == "bash":
             result = await self.env.exec(str(args.get("command", "")))
             return (result.stdout or "") + (result.stderr or "")
