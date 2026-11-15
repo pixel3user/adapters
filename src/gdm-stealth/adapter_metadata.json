@@ -1,13 +1,17 @@
 [
   {
     "adapter_name": "gdm-stealth",
-    "adapter_builders": ["Harbor Team"],
+    "adapter_builders": [
+      "pixel3user (106806012+pixel3user@users.noreply.github.com)"
+    ],
     "original_benchmark": [
       {
         "split": "full",
         "size": 13,
         "harness": "agent",
-        "supported_agents": ["None"],
+        "supported_agents": [
+          "None"
+        ],
         "adaptable": true,
         "notes": "Upstream is inspect_evals/gdm_stealth (Inspect Evals @ a68dade7efb803ef50c8442d3f16264b293d1414): 4 tasks, 13 samples under upstream default FSF-v2 filters (oversight_pattern 2, classifier_evasion 9, cover_your_tracks 1 with hard_only=True, strategic_rule_breaking 1). eval.yaml claims 14 (cover 2); code default wins. Harness is custom Inspect solvers with LLM raters, not Harbor-compatible agents."
       }
@@ -16,10 +20,12 @@
       {
         "split": "full",
         "adapted_benchmark_size": 13,
-        "parity_benchmark_size": 13,
-        "parity_sampling_rate": 1.0,
+        "parity_benchmark_size": 0,
+        "parity_sampling_rate": 0.0,
         "registry_benchmark_size": 0,
-        "added_agents": ["gdm-stealth-parity-agent@0.1.0"],
+        "added_agents": [
+          "gdm-stealth-parity-agent@0.1.0"
+        ],
         "parity_matching_agents": [],
         "parity_unmatching_agents": [],
         "parity_costs": null,

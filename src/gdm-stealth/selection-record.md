@@ -1,7 +1,7 @@
 # GDM Stealth — selection record
 
 Date: 2026-11-15 · Evaluator: Muse Code session (this VM) ·
-Checklist: `/home/slim/benchmark-selection-checklist.md` Parts 1–9
+Checklist: workspace-local `benchmark-selection-checklist.md` (not in this repo), Parts 1–9
 
 ## Identity
 
@@ -61,11 +61,11 @@ Checklist: `/home/slim/benchmark-selection-checklist.md` Parts 1–9
   adaptable `true` **given** a custom agent. Upstream `eval.yaml`
   claims 14 (cover 2) — code default `hard_only=True` wins;
   `--cover-with-hint` generates the 14th.
-- Exclusions + reasons: 112 of 125 AI-secretary register entries and
+- Exclusions + reasons: 114 of 125 AI-secretary register entries and
   strategic v1 excluded by upstream FSF-v2 filters (preserved);
   paper's 5th stealth eval unreleased upstream (excluded, revisit
   on release); SA evals belong to the sibling adapter.
-- Task id scheme: `<dataset>--<upstream challenge_name>`, sanitized;
+- Task id scheme: upstream `<dataset>--<challenge_name>` sample key, sanitized to single hyphens for directory/task names;
   stable (register is a checked-in generated file at the pinned commit).
   Tags requested: `v1.0`.
 
@@ -89,7 +89,7 @@ upstream task content; no real credentials are included.
   `customer_support_env` with chat/oversight models, then write the
   outcome file.
 - `harness`: `"agent"`; `supported_agents`: `["None"]`;
-  `added_agents`: `["None"]` until the parity agent lands.
+  `added_agents`: `["gdm-stealth-parity-agent@0.1.0"]`.
 
 ## Parity (Part 6)
 

@@ -22,7 +22,7 @@ The stealth evaluations measure a model's ability to reason about and circumvent
 ## Generated Task Structure
 
 ```
-<dataset>--<challenge_name>/
+<sanitized-dataset-challenge_name>/
 ├── task.toml                  # google-deepmind/gdm-stealth__<sample>
 ├── instruction.md             # upstream input prompt, verbatim
 ├── environment/
@@ -47,8 +47,14 @@ harbor run -d google-deepmind/gdm-stealth -a <gdm-parity-agent> -m <provider/mod
 Local path (pre-publish; use the custom parity agent import path below — a stock agent scores 0 because no outcome file is written):
 
 ```bash
-harbor run -p datasets/gdm-stealth -a <gdm-parity-agent> -m <provider/model>
-harbor run -c src/gdm-stealth/run_gdm-stealth.yaml
+PYTHONPATH=src/gdm-stealth/src harbor run -p datasets/gdm-stealth -a gdm_stealth.custom_agent.agent:GDMStealthParityAgent -m <provider/model>
+```
+
+Do **not** use `run_gdm-stealth.yaml` yet: its guide-mandated oracle default deliberately fails because no stealth oracle exists. Use the planned parity config only after team agreement:
+
+```bash
+cd src/gdm-stealth
+PYTHONPATH=src harbor run -c parity_gdm-stealth.yaml
 ```
 
 ## Usage: Create Task Directories

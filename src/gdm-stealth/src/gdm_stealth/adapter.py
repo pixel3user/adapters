@@ -121,6 +121,10 @@ class GDMStealthAdapter:
         for d in (env_dir, tests_dir, solution_dir):
             d.mkdir(parents=True)
 
+        shutil.copy2(
+            Path(__file__).resolve().parents[2] / "LICENSE.inspect-evals",
+            env_dir / "LICENSE.inspect-evals",
+        )
         (env_dir / "gdm_task.json").write_text(
             json.dumps(marker_payload(sample["sample_id"]), indent=2) + "\n",
             encoding="utf-8",

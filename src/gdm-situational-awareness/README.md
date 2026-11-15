@@ -29,7 +29,7 @@ The situational-awareness (upstream: "self-reasoning") evaluations measure wheth
 │   ├── Dockerfile             # upstream base (inlined) + challenge Dockerfile
 │   └── <challenge assets>     # agent.py, config.json, data files at build root
 ├── solution/
-│   └── solve.sh               # scripted oracle candidate (unverified)
+│   └── solve.sh               # scripted oracle solution (verified 22/22)
 └── tests/
     ├── test.sh                # runs verify.py, writes /logs/verifier/reward.txt
     ├── verify.py              # ported upstream success checks

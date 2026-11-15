@@ -21,6 +21,6 @@ environment:
 agents:
   - name: oracle
   # - name: claude-code
-  #   model_name: anthropic/claude-haiku-4-5
+  #   model_name: anthropic/claude-haiku-4-5-20251001
 datasets:
   - path: datasets/gdm-stealth

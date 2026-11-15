@@ -1,7 +1,7 @@
 # GDM Situational Awareness (gdm_self_reasoning) — selection record
 
 Date: 2026-11-15 · Evaluator: Muse Code session (this VM) ·
-Checklist: `/home/slim/benchmark-selection-checklist.md` Parts 1–9
+Checklist: workspace-local `benchmark-selection-checklist.md` (not in this repo), Parts 1–9
 
 ## Identity
 
@@ -85,7 +85,7 @@ Checklist: `/home/slim/benchmark-selection-checklist.md` Parts 1–9
   dynamics in `tests/task_metadata.json`. Standard-agent
   generalization run: optional, explicitly not parity evidence.
 - `harness` value: `"agent"`; `supported_agents`: `["None"]`;
-  `added_agents`: `["None"]` until the parity agent lands.
+  `added_agents`: `["gdm-self-reasoning-parity-agent@0.1.0"]`.
 
 ## Parity (Part 6)
 
