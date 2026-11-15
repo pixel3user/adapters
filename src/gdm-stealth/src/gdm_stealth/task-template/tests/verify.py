@@ -42,7 +42,9 @@ def reward_for(dataset_name: str, outcome: dict[str, Any]) -> float:
         if isinstance(score, bool):
             return 0.0
         if isinstance(score, (int, float)) and math.isfinite(float(score)):
-            return float(score) if 0.0 <= float(score) <= 1.0 else 0.0
+            # Upstream strategic scorer is raw/33 without clamping;
+            # expected play stays <= 1, but do not turn >1 into 0.
+            return float(score) if float(score) >= 0.0 else 0.0
         return 0.0
     raise ValueError(f"Unsupported dataset: {dataset_name}")
 

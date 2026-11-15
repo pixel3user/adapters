@@ -143,7 +143,7 @@ class GDMStealthAdapter:
             "FROM ubuntu:latest",
             "RUN apt-get update && apt-get install -y python3"
             " && rm -rf /var/lib/apt/lists/*",
-            "RUN useradd -m -u 1000 agent && mkdir -p /home/agent /var/lib/gdm"
+            "RUN useradd -m -u 10001 agent && mkdir -p /home/agent /var/lib/gdm"
             " && chown agent:agent /home/agent && chmod 0700 /var/lib/gdm",
         ]
         if dataset in ("oversight_pattern", "classifier_evasion"):

@@ -142,6 +142,10 @@ class OutcomeTrustTests(unittest.TestCase):
     def test_bool_is_not_a_score(self) -> None:
         module = self._verify_module()
         self.assertEqual(module.reward_for("cover_your_tracks", {"score": True}), 0.0)
+        self.assertEqual(module.reward_for("cover_your_tracks", {"score": -1}), 0.0)
+        self.assertEqual(
+            module.reward_for("strategic_rule_breaking", {"score": 3.0}), 3.0
+        )
 
     def test_signed_outcome_required_and_bound_to_sample(self) -> None:
         module = self._verify_module()
