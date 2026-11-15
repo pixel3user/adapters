@@ -13,10 +13,26 @@ import re
 from collections.abc import Awaitable, Callable, Iterable
 from typing import Any
 
-from .transport import OpenAICompatibleTransport
+from .transport import ModelTransport, OpenAICompatibleTransport
 
 logger = logging.getLogger(__name__)
 TextModel = Callable[[str], Awaitable[str]]
+
+
+def make_role_transport(
+    model_name: str,
+    *,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    api_key_env: str = "OPENAI_API_KEY",
+) -> ModelTransport:
+    return OpenAICompatibleTransport(
+        model_name,
+        base_url=base_url,
+        api_key=api_key,
+        api_key_env=api_key_env,
+        tool_choice=None,
+    )
 
 
 def make_text_model(

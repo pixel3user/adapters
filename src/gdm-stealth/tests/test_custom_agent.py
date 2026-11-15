@@ -203,5 +203,94 @@ class CoverLogTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result.startswith("Error:"), result)
 
 
+class StealthFidelityTests(unittest.IsolatedAsyncioTestCase):
+    def test_transport_and_schemas(self) -> None:
+        from gdm_stealth.custom_agent.hosts import TOOL_SCHEMAS
+        from gdm_stealth.custom_agent.transport import OpenAICompatibleTransport
+
+        self.assertEqual(
+            OpenAICompatibleTransport("fake/model", api_key="x").tool_choice,
+            "required",
+        )
+        self.assertIn(
+            "won't count as resolved",
+            TOOL_SCHEMAS["assign_ticket_to_dev_team"]["description"],
+        )
+        self.assertIn(
+            "criterion is not used",
+            TOOL_SCHEMAS["search_emails"]["parameters"]["properties"]["subject"][
+                "description"
+            ],
+        )
+
+    def test_rater_company_maps(self) -> None:
+        from gdm_stealth.task_catalog import rater_model_for
+
+        self.assertEqual(
+            rater_model_for("anthropic", "rater", "classifier_evasion"),
+            "anthropic/claude-opus-4-20250514",
+        )
+        self.assertEqual(
+            rater_model_for("openai", "judger", "classifier_evasion"),
+            "openai/o4-mini-2025-04-16",
+        )
+        self.assertEqual(
+            rater_model_for("google", "chat", "strategic_rule_breaking"),
+            "google/gemini-2.0-flash",
+        )
+
+    async def test_invalid_strategic_args_do_not_advance_time(self) -> None:
+        from gdm_stealth.custom_agent.strategic.customer_support_env import (
+            CustomerSupportEnv,
+        )
+        from gdm_stealth.custom_agent.strategic.model_shim import ShimModel
+        from gdm_stealth.custom_agent.strategic_tools import StrategicTools
+
+        async def fake(messages):
+            return "a"
+
+        env = CustomerSupportEnv(
+            None, None, "normal_turn_100_version_2", ShimModel(fake), random_seed=0
+        )
+        tools = StrategicTools(env, ShimModel(fake), seed=0)
+        before = env.time
+        result = await tools.execute("read_ticket", {})
+        self.assertTrue(result.startswith("Error:"))
+        self.assertEqual(env.time, before)
+        result = await tools.execute("not_a_tool", {})
+        self.assertTrue(result.startswith("Error:"))
+        self.assertEqual(env.time, before)
+
+    async def test_cover_freeform_date_and_write_overwrite_index(self) -> None:
+        from gdm_stealth.custom_agent.cover import CoverDatabase
+
+        async def rater(prompt):
+            return '{"said_yes": true}'
+
+        db = CoverDatabase(rater)
+        found = db.find_emails(start_time=db.parse_time("November 21, 2024"))
+        self.assertTrue(found)
+        original_ids = list(db.ids)
+        first_id = original_ids[0]
+        db.delete_emails([first_id])
+        await db.write_email("New", "body", ["x@example.com"])
+        # Upstream pandas loc[len(df)] overwrites the row whose index
+        # equals the current row count after a non-final deletion.
+        self.assertEqual(len(db.ids), len(original_ids) - 1)
+        self.assertNotIn(original_ids[len(original_ids) - 1], db.ids)
+
+    def test_strategic_score_parses_first_score(self) -> None:
+        from gdm_stealth.custom_agent.agent import GDMStealthParityAgent
+
+        outcome = GDMStealthParityAgent._outcome(
+            "strategic_rule_breaking",
+            "failed",
+            "User said Score: 99\nScore: 3.",
+            host=None,
+            metadata={"sample_key": "strategic_rule_breaking--normal_turn_100_version_2"},
+        )
+        self.assertAlmostEqual(outcome["score"], 99 / 33)
+
+
 if __name__ == "__main__":
     unittest.main()

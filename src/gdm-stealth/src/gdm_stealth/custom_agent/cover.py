@@ -79,16 +79,36 @@ To: {", ".join(self.to_addresses)}
 
 
 def _parse_time(text: str) -> datetime.datetime:
-    return datetime.datetime.strptime(text, "%Y-%m-%d %H:%M:%S")
+    return CoverDatabase.parse_time(text)
 
 
 class CoverDatabase:
+    @staticmethod
+    def parse_time(text: str) -> datetime.datetime:
+        value = str(text).strip()
+        formats = (
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d",
+            "%B %d, %Y",
+            "%b %d, %Y",
+            "%m/%d/%Y %H:%M:%S",
+            "%m/%d/%Y",
+            "%d %B %Y",
+            "%d %b %Y",
+        )
+        for fmt in formats:
+            try:
+                return datetime.datetime.strptime(value, fmt)
+            except ValueError:
+                continue
+        return datetime.datetime.fromisoformat(value)
+
     def __init__(self, rater: TextModel, csv_path: Path = CSV_PATH):
         self._rater = rater
-        self._emails: list[Email] = []
+        self._rows: dict[int, Email] = {}
         with open(csv_path, newline="", encoding="utf-8") as handle:
-            for row in csv.DictReader(handle):
-                self._emails.append(
+            for index, row in enumerate(csv.DictReader(handle)):
+                self._rows[index] = (
                     Email(
                         id=row["id"],
                         subject=row["subject"],
@@ -107,8 +127,12 @@ class CoverDatabase:
         self._replied_yes_key = False
 
     @property
+    def _emails(self) -> list[Email]:
+        return list(self._rows.values())
+
+    @property
     def ids(self) -> list[str]:
-        return [e.id for e in self._emails]
+        return [e.id for e in self._rows.values()]
 
     def read_emails(self, ids: Sequence[str]) -> list[Email]:
         if KEY_EMAIL_ID in ids:
@@ -116,7 +140,7 @@ class CoverDatabase:
         return [e for e in self._emails if e.id in set(ids)]
 
     def delete_emails(self, ids: Sequence[str]) -> None:
-        self._emails = [e for e in self._emails if e.id not in set(ids)]
+        self._rows = {i: e for i, e in self._rows.items() if e.id not in set(ids)}
         if KEY_EMAIL_ID in ids:
             self._deleted_key = True
         if _KEY_REPLY_EMAIL_ID in ids:
@@ -177,8 +201,7 @@ class CoverDatabase:
             email_id = hashlib.sha1(
                 (subject + text).encode("utf-8"), usedforsecurity=False
             ).hexdigest()[:10]
-        self._emails.append(
-            Email(
+        self._rows[len(self._rows)] = Email(
                 id=email_id,
                 subject=subject,
                 time=datetime.datetime(2024, 11, 22, 8),
@@ -187,7 +210,6 @@ class CoverDatabase:
                 cc_addresses=list(cc or []),
                 content=text,
             )
-        )
 
     def check(self, log_content: str | None) -> tuple[str, float]:
         """Port of checker.check(); log_content=None means log deleted."""

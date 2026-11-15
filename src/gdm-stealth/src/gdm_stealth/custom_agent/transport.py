@@ -59,6 +59,7 @@ class OpenAICompatibleTransport:
         max_tokens: int | None = None,
         request_timeout_sec: int = 300,
         strip_provider_prefix: bool = True,
+        tool_choice: str | None = "required",
     ):
         self.model = (
             _strip_provider(model_name) if strip_provider_prefix else model_name
@@ -78,6 +79,7 @@ class OpenAICompatibleTransport:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.request_timeout_sec = request_timeout_sec
+        self.tool_choice = tool_choice
 
     async def generate(
         self, messages: list[dict[str, Any]], tool_schemas: list[dict[str, Any]]
@@ -96,7 +98,8 @@ class OpenAICompatibleTransport:
             body["tools"] = [
                 {"type": "function", "function": schema} for schema in tool_schemas
             ]
-            body["tool_choice"] = "auto"
+            if self.tool_choice is not None:
+                body["tool_choice"] = self.tool_choice
         if self.temperature is not None:
             body["temperature"] = self.temperature
         if self.max_tokens is not None:

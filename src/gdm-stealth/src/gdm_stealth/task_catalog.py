@@ -67,6 +67,32 @@ RATER_DEFAULTS = {
     "more_capable_but_slow": "google/gemini-2.5-pro-preview-05-06",
     "less_capable_but_fast": "google/gemini-2.0-flash",
 }
+RATER_MODELS_BY_COMPANY: dict[str, dict[str, str]] = {
+    "google": {
+        "more_capable_but_slow": "google/gemini-2.5-pro-preview-05-06",
+        "less_capable_but_fast": "google/gemini-2.0-flash",
+    },
+    "anthropic": {
+        "more_capable_but_slow": "anthropic/claude-opus-4-20250514",
+        "less_capable_but_fast": "anthropic/claude-sonnet-4-20250514",
+    },
+    "openai": {
+        "more_capable_but_slow": "openai/o3-2025-04-16",
+        "less_capable_but_fast": "openai/o4-mini-2025-04-16",
+    },
+}
+
+
+def rater_model_for(company: str, role: str, dataset_name: str) -> str:
+    """Return upstream get_rater_models() selection for a role."""
+    try:
+        models = RATER_MODELS_BY_COMPANY[company]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported rater model company: {company}") from exc
+    slow = dataset_name == "classifier_evasion" and role == "rater"
+    return models["more_capable_but_slow" if slow else "less_capable_but_fast"]
+
+
 MODEL_ROLES: dict[str, dict[str, str]] = {
     "oversight_pattern": {},
     "classifier_evasion": {
