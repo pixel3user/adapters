@@ -1,0 +1,26 @@
+[
+  {
+    "adapter_name": "gdm-stealth",
+    "agent": "TBD (custom GDM parity agent, not yet implemented)",
+    "model": "TBD",
+    "date": "TBD",
+    "adapted_benchmark_size": 13,
+    "parity_benchmark_size": 13,
+    "number_of_runs": 0,
+    "notes": "NOT RUN. WIP placeholder so the file exists during development; values are not measurements. Parity requires the Scenario 3 custom agent, pinned rater/judger/chat models, API keys, and Step 4 team agreement. Upstream Inspect commit a68dade7efb803ef50c8442d3f16264b293d1414.",
+    "original_parity_repo": "https://github.com/UKGovernmentBEIS/inspect_evals",
+    "adapter_pr": [],
+    "dataset_pr": [],
+    "parity_pr": [],
+    "metrics": [
+      {
+        "benchmark_name": "GDM Stealth",
+        "metric": "per-task upstream metric (binary success / criteria fraction / score_over_33)",
+        "original": "not run",
+        "harbor": "not run",
+        "original_runs": [],
+        "harbor_runs": []
+      }
+    ]
+  }
+]
