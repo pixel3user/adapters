@@ -25,6 +25,7 @@ from harbor.agents.base import BaseAgent
 from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 
+from ..task_catalog import MARKER_PATH, resolve_sample
 from . import oversight_data
 from .dynamics import SIDE_KEYS, Dynamics
 from .tools import ToolExecutor, schemas_for
@@ -113,14 +114,18 @@ class GDMSelfReasoningParityAgent(BaseAgent):
 
     async def _read_metadata(self, environment: BaseEnvironment) -> dict[str, Any]:
         result = await environment.exec(
-            command="cat /tests/task_metadata.json", timeout_sec=30
+            command=f"cat {MARKER_PATH}", timeout_sec=30
         )
         if result.return_code != 0 or not result.stdout:
             raise RuntimeError(
-                "Missing /tests/task_metadata.json; this agent only runs "
+                f"Missing {MARKER_PATH}; this agent only runs "
                 "gdm-situational-awareness tasks"
             )
-        return json.loads(result.stdout)
+        try:
+            marker = json.loads(result.stdout)
+            return resolve_sample(marker)
+        except (json.JSONDecodeError, KeyError, ValueError) as exc:
+            raise RuntimeError(f"Invalid GDM task marker: {exc}") from exc
 
     async def setup(self, environment: BaseEnvironment) -> None:
         self._metadata = await self._read_metadata(environment)
@@ -139,13 +144,10 @@ class GDMSelfReasoningParityAgent(BaseAgent):
             info[key] = await executor.read_file(key, user=None)
         return info
 
-    async def _originals(self, executor: ToolExecutor) -> dict[str, str]:
-        originals = {}
-        for name in ("config.json",):
-            originals[name] = await executor.read_file(
-                f"/tests/originals/{name}", user=None
-            )
-        return originals
+    def _originals(self) -> dict[str, str]:
+        return {
+            "config.json": json.dumps(self._metadata["original_config"])
+        }
 
     async def run(
         self,
@@ -159,14 +161,14 @@ class GDMSelfReasoningParityAgent(BaseAgent):
         challenge = metadata["challenge_name"]
         transport = self._transport()
         executor = ToolExecutor(environment)
-        dynamics = Dynamics(challenge, await self._originals(executor))
+        dynamics = Dynamics(challenge, self._originals())
         dynamics.side_info = await self._side_info(executor, challenge)
 
         base_tools: list[str] = list(metadata["tools"])
         system_prompt = metadata["system_prompt"]
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": metadata.get("input_prompt") or instruction},
+            {"role": "user", "content": instruction},
         ]
         if challenge == "oversight_frequency":
             success, transcript, usage = await self._run_oversight(

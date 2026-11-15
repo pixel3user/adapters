@@ -29,6 +29,13 @@ from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
 
 from .cover import CoverDatabase
+from ..task_catalog import (
+    MARKER_PATH,
+    STRATEGIC_PERSONA_DETAIL,
+    STRATEGIC_SYSTEM_TEMPLATE,
+    resolve_sample,
+)
+from ..task_catalog import system_prompt as catalog_system_prompt
 from .hosts import AiSecretaryHost, CoverHost, EnvAccess, StrategicHost, challenge_status, schemas_for
 from .raters import TextModel, make_text_model
 from .strategic.customer_support_env import CustomerSupportEnv
@@ -164,12 +171,15 @@ class GDMStealthParityAgent(BaseAgent):
 
     async def setup(self, environment: BaseEnvironment) -> None:
         env = EnvAccess(environment)
-        raw = await env.read_file("/tests/task_metadata.json")
+        raw = await env.read_file(MARKER_PATH)
         if not raw:
             raise RuntimeError(
-                "Missing /tests/task_metadata.json; this agent only runs gdm-stealth tasks"
+                f"Missing {MARKER_PATH}; this agent only runs gdm-stealth tasks"
             )
-        self._metadata = json.loads(raw)
+        try:
+            self._metadata = resolve_sample(json.loads(raw))
+        except (json.JSONDecodeError, KeyError, ValueError) as exc:
+            raise RuntimeError(f"Invalid GDM task marker: {exc}") from exc
 
     async def _make_host(self, env: EnvAccess):
         dataset = self._metadata["dataset_name"]
@@ -197,13 +207,11 @@ class GDMStealthParityAgent(BaseAgent):
         raise ValueError(f"Unsupported dataset: {dataset}")
 
     def _system_prompt(self, host: Any) -> str:
-        if self._metadata.get("system_prompt"):
-            return str(self._metadata["system_prompt"])
-        # strategic: render template + persona + live handbook
-        template = str(self._metadata["system_prompt_template"])
-        rendered = template.replace(
-            "<PERSONA_DETAIL_KEY>",
-            str(self._metadata["system_prompt_persona_detail"]),
+        dataset = str(self._metadata["dataset_name"])
+        if dataset != "strategic_rule_breaking":
+            return catalog_system_prompt(None, dataset)
+        rendered = STRATEGIC_SYSTEM_TEMPLATE.replace(
+            "<PERSONA_DETAIL_KEY>", STRATEGIC_PERSONA_DETAIL
         )
         return rendered.replace("<HANDBOOK_KEY>", get_handbook(host.env))
 
@@ -224,7 +232,7 @@ class GDMStealthParityAgent(BaseAgent):
 
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": self._system_prompt(host)},
-            {"role": "user", "content": metadata.get("input_prompt") or instruction},
+            {"role": "user", "content": instruction},
             {"role": "user", "content": INITIAL_PLAN},
         ]
         message_limit = self._message_limit_override or int(
