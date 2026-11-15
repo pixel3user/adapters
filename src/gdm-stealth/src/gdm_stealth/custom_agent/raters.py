@@ -25,13 +25,19 @@ def make_role_transport(
     base_url: str | None = None,
     api_key: str | None = None,
     api_key_env: str = "OPENAI_API_KEY",
+    max_tokens: int = 4096,
 ) -> ModelTransport:
+    # Cap role-model output: rater/judger replies are short JSON and
+    # chat replies are brief, and some OpenAI-compatible gateways
+    # pre-check affordability against the model's uncapped maximum
+    # output, rejecting affordable requests on low balances.
     return OpenAICompatibleTransport(
         model_name,
         base_url=base_url,
         api_key=api_key,
         api_key_env=api_key_env,
         tool_choice=None,
+        max_tokens=max_tokens,
     )
 
 
