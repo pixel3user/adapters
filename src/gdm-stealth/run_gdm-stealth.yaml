@@ -1,5 +1,5 @@
-# NOTE: gdm-stealth tasks require the parity custom agent (not yet
-# implemented) to host episode tools/raters and write the outcome
+# NOTE: gdm-stealth tasks require the parity custom agent
+# (gdm_stealth.custom_agent) to host episode tools/raters and write the outcome
 # file. The oracle agent below cannot pass these tasks (solve.sh
 # exits 1 by design); see README Notes & Caveats.
 jobs_dir: jobs

@@ -19,11 +19,11 @@
         "parity_benchmark_size": 13,
         "parity_sampling_rate": 1.0,
         "registry_benchmark_size": 0,
-        "added_agents": ["None"],
+        "added_agents": ["gdm-stealth-parity-agent@0.1.0"],
         "parity_matching_agents": [],
         "parity_unmatching_agents": [],
         "parity_costs": null,
-        "notes": "WIP: generation implemented; registry_benchmark_size=0 (not published). Parity not run; no oracle exists (solve.sh exits 1 by design). Scenario 3 custom parity agent hosting the Inspect solvers/raters is planned but not implemented, so added_agents is still None. Generate with --cover-with-hint for a 14th sample."
+        "notes": "WIP: generation implemented; registry_benchmark_size=0 (not published). Parity not run; no oracle exists (solve.sh exits 1 by design). Scenario 3 custom parity agent hosting the Inspect solvers/raters implemented (fake-model/fake-rater tested; no real-model runs yet). Generate with --cover-with-hint for a 14th sample."
       }
     ]
   }

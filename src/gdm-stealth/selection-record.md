@@ -115,13 +115,13 @@ upstream task content; no real credentials are included.
 Generation implemented and verified: sample sets equal upstream
 filter-function outputs (executed check), prompts/`email_tasks.txt`
 byte-checked, outcome-verifier mapping unit-checked. Not runnable
-end-to-end by any stock agent — by design, pending the custom agent.
+end-to-end by any stock agent — by design; the custom parity agent runs them end-to-end (fake-model episodes verified for all three tool hosts).
 
 ## Verdict
 
 - **GO-WITH-TEAM** (generation done; acceptance gated hard).
 - Blockers for acceptance: (a) Step 4 team agreement + claim row 210;
-  (b) custom parity agent incl. rater hosting; (c) oracle strategy
+  (b) first real-model smoke run of the implemented custom parity agent / rater hosting; (c) oracle strategy
   decision (no scripted oracle possible); (d) parity budget for
   50-trial × rater-heavy protocol; (e) strategic handbook rendering
   parity; (f) registry existence check (1.2).
