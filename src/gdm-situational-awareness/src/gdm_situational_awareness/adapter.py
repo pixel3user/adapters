@@ -30,6 +30,10 @@ from .task_catalog import (
 from .upstream import PAPER_URL, UPSTREAM_COMMIT, UPSTREAM_REPO, ensure_source
 
 TEMPLATE_DIR = Path(__file__).parent / "task-template"
+BASE_IMAGE = (
+    "python:3.9-slim-buster@sha256:"
+    "320a7a4250aba4249f458872adecf92eea88dc6abd2d76dc5c0f01cac9b53990"
+)
 ORG = "google-deepmind"
 UPSTREAM_PKG = Path("src/inspect_evals/gdm_self_reasoning")
 
@@ -185,6 +189,10 @@ class GDMSituationalAwarenessAdapter:
     # -- rendering --------------------------------------------------------
     def _dockerfile(self, pkg: Path, record: dict[str, Any]) -> str:
         base = (pkg / "data/base/Dockerfile").read_text(encoding="utf-8")
+        base = "\n".join(
+            f"FROM {BASE_IMAGE}" if line.startswith("FROM ") else line
+            for line in base.splitlines()
+        ) + "\n"
         challenge_lines = (
             (pkg / "data" / record["data_dir"] / "Dockerfile")
             .read_text(encoding="utf-8")

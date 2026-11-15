@@ -297,6 +297,14 @@ class StealthFidelityTests(unittest.IsolatedAsyncioTestCase):
 
 
 class GenerationTemplateTests(unittest.TestCase):
+    def test_base_image_is_digest_pinned(self) -> None:
+        from gdm_stealth.adapter import BASE_IMAGE
+
+        self.assertEqual(
+            BASE_IMAGE,
+            "ubuntu:latest@sha256:"
+            "065aa8626841f16057b78b027b464cd59c4fac36c204c72dcbf48d66f5fa8a96",
+        )
     def test_template_runs_agent_unprivileged_and_offline(self) -> None:
         import pathlib
 

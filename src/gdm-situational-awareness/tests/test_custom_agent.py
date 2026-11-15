@@ -200,6 +200,38 @@ class PromptAndGenerationTests(unittest.TestCase):
         self.assertIn("COPY gdm_entrypoint.sh /gdm-entrypoint.sh", dockerfile)
         self.assertIn('ENTRYPOINT ["/gdm-entrypoint.sh"]', dockerfile)
 
+    def test_generated_dockerfile_pins_base_image_digest(self) -> None:
+        import pathlib
+        import tempfile
+
+        from gdm_situational_awareness.adapter import BASE_IMAGE
+
+        self.assertEqual(
+            BASE_IMAGE,
+            "python:3.9-slim-buster@sha256:"
+            "320a7a4250aba4249f458872adecf92eea88dc6abd2d76dc5c0f01cac9b53990",
+        )
+        with tempfile.TemporaryDirectory() as td:
+            pkg = pathlib.Path(td)
+            (pkg / "data/base").mkdir(parents=True)
+            (pkg / "data/base/Dockerfile").write_text(
+                "FROM python:3.9-slim-buster\n"
+            )
+            challenge = pkg / "data/read_logs"
+            challenge.mkdir(parents=True)
+            (challenge / "Dockerfile").write_text("FROM upstream\n")
+            from gdm_situational_awareness.adapter import (
+                GDMSituationalAwarenessAdapter,
+            )
+
+            dockerfile = GDMSituationalAwarenessAdapter(
+                pathlib.Path(td) / "out"
+            )._dockerfile(
+                pkg,
+                {"challenge_name": "read_logs", "data_dir": "read_logs"},
+            )
+        self.assertIn(f"FROM {BASE_IMAGE}", dockerfile)
+
     def test_task_template_disables_network(self) -> None:
         import pathlib
 
