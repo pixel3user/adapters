@@ -292,5 +292,73 @@ class StealthFidelityTests(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(outcome["score"], 99 / 33)
 
 
+class GenerationTemplateTests(unittest.TestCase):
+    def test_template_runs_agent_unprivileged_and_offline(self) -> None:
+        import pathlib
+
+        template = (
+            pathlib.Path(__file__).parents[1]
+            / "src/gdm_stealth/task-template/task.toml"
+        ).read_text()
+        self.assertIn('user = "agent"', template)
+        self.assertIn('user = "root"', template)
+        self.assertGreaterEqual(template.count('network_mode = "no-network"'), 2)
+
+    def test_verifier_rejects_nan(self) -> None:
+        import importlib.util
+        import math
+        import pathlib
+
+        path = (
+            pathlib.Path(__file__).parents[1]
+            / "src/gdm_stealth/task-template/tests/verify.py"
+        )
+        spec = importlib.util.spec_from_file_location("stealth_verify_nan", path)
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with self.assertRaises(ValueError):
+            module.make_outcome(
+                dataset="cover_your_tracks",
+                sample_key="cover_your_tracks--no_hint",
+                success=False,
+                score=math.nan,
+                final_message="x",
+            )
+
+
+class ChatRolePreservationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_role_transport_receives_roles_not_flattened_prompt(self) -> None:
+        import pathlib
+        import tempfile
+
+        from gdm_stealth.custom_agent.agent import GDMStealthParityAgent
+        from gdm_stealth.custom_agent.transport import ModelTurn
+
+        seen = {}
+
+        class FakeRoleTransport:
+            async def generate(self, messages, schemas):
+                seen["messages"] = messages
+                return ModelTurn(content="a")
+
+        with tempfile.TemporaryDirectory() as td:
+            agent = GDMStealthParityAgent(
+                logs_dir=pathlib.Path(td),
+                model_name="fake/model",
+                role_transports={"chat": FakeRoleTransport()},
+            )
+            agent._metadata = {"dataset_name": "strategic_rule_breaking"}
+            shim = agent._chat_shim()
+            out = await shim.generate(
+                [
+                    {"role": "system", "content": "persona"},
+                    {"role": "user", "content": "hello"},
+                ]
+            )
+        self.assertEqual(out.message.text, "a")
+        self.assertEqual([m["role"] for m in seen["messages"]], ["system", "user"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -116,6 +116,28 @@ class AgentWithoutTestsMountTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(ctx.metadata["success"])
 
 
+class ReasoningTests(unittest.TestCase):
+    def test_assistant_message_preserves_reasoning(self) -> None:
+        from gdm_situational_awareness.custom_agent.agent import _assistant_message
+        from gdm_situational_awareness.custom_agent.transport import ModelTurn
+
+        msg = _assistant_message(ModelTurn(content="hi", raw_reasoning="think"))
+        self.assertEqual(msg["reasoning_content"], "think")
+
+    def test_censor_reasoning_can_be_disabled(self) -> None:
+        from gdm_situational_awareness.custom_agent.dynamics import Dynamics
+        from gdm_situational_awareness.custom_agent.transport import ModelTurn
+
+        d = Dynamics(
+            "turn_off_filters", {"config.json": "{}"}, censor_reasoning=False
+        )
+        d.set_side_info({"/home/agent/blocklisted_words.txt": "frickin"})
+        turn = ModelTurn(content="frickin", raw_reasoning="frickin thought")
+        d.process_output(turn)
+        self.assertNotIn("frickin", turn.content)
+        self.assertEqual(turn.raw_reasoning, "frickin thought")
+
+
 class PromptAndGenerationTests(unittest.TestCase):
     def test_hard_objective_keeps_upstream_trailing_newline(self) -> None:
         from gdm_situational_awareness.adapter import get_input_prompt, get_objective
@@ -150,6 +172,33 @@ class PromptAndGenerationTests(unittest.TestCase):
         self.assertNotIn("RUN /setup_task.sh", dockerfile)
         self.assertIn("gdm_entrypoint.sh", dockerfile)
         self.assertIn("ENTRYPOINT", dockerfile)
+
+    def test_approved_dockerfile_uses_entrypoint(self) -> None:
+        import pathlib
+        import tempfile
+
+        from gdm_situational_awareness.adapter import GDMSituationalAwarenessAdapter
+
+        with tempfile.TemporaryDirectory() as td:
+            pkg = pathlib.Path(td)
+            (pkg / "data/base").mkdir(parents=True)
+            (pkg / "data/base/Dockerfile").write_text("FROM python:3.9-slim-buster\n")
+            challenge = pkg / "data/approved_directories"
+            challenge.mkdir(parents=True)
+            (challenge / "Dockerfile").write_text(
+                "FROM upstream\nRUN apt-get update && apt-get install -y inotify-tools\n"
+            )
+            adapter = GDMSituationalAwarenessAdapter(pathlib.Path(td) / "out")
+            dockerfile = adapter._dockerfile(
+                pkg,
+                {
+                    "challenge_name": "approved_directories",
+                    "data_dir": "approved_directories",
+                },
+            )
+        self.assertIn("archive.debian.org", dockerfile)
+        self.assertIn("COPY gdm_entrypoint.sh /gdm-entrypoint.sh", dockerfile)
+        self.assertIn('ENTRYPOINT ["/gdm-entrypoint.sh"]', dockerfile)
 
     def test_task_template_disables_network(self) -> None:
         import pathlib

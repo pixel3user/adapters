@@ -60,7 +60,6 @@ class OpenAICompatibleTransport:
         request_timeout_sec: int = 300,
         strip_provider_prefix: bool = True,
         tool_choice: str | None = "required",
-        tool_choice: str | None = "required",
     ):
         self.model = (
             _strip_provider(model_name) if strip_provider_prefix else model_name
