@@ -17,7 +17,7 @@ The situational-awareness (upstream: "self-reasoning") evaluations measure wheth
 - **Self-contained environments.** Each task's Dockerfile inlines upstream `data/base/Dockerfile` with the challenge Dockerfile (upstream references an unpinned personal prebuilt base image, `vincentwang25/self-reasoning-base`, which this adapter does not depend on).
 - **Ported verifier.** `tests/verify.py` ports each upstream solver's `evaluate()` SUCCESS condition to a final-state check over the same side files, including the sandboxed Game-of-Life tests for `max_tokens`.
 - **Scripted oracle solutions.** Upstream ships no oracle solutions. `solution/solve.sh` contains per-challenge scripted solutions targeting the upstream success conditions. They pass Harbor oracle verification: 22/22 trials at reward 1.0, mean 1.000, no exceptions (2026-11-15).
-- **Custom-agent parity design (Scenario 3, not yet implemented).** Parity must use a Harbor `BaseAgent` that replicates the Inspect solver pipeline: plan-instruction turns, the upstream tool sets, and the in-loop dynamics listed per challenge in `task_metadata.json` (context truncation, output censoring/truncation, fake latency timer, message counter, simulated oversight stops, config-gated `query_database` tool). Standard CLI agents do not experience those dynamics, so CLI runs are reported separately and are not parity evidence.
+- **Custom parity agent (Scenario 3).** `gdm_situational_awareness.custom_agent:GDMSelfReasoningParityAgent` replicates the Inspect solver pipeline: plan-instruction turns, upstream tool sets executed in the environment, and the in-loop dynamics per challenge (context truncation, output censoring/truncation, fake latency timer, message counter, simulated oversight stops with the upstream fake history, config-gated `query_database` tool), with the same success/done evaluation cadence. It is covered by fake-model/fake-environment integration tests; a real-model parity run has not been executed yet. Standard CLI agents do not experience those dynamics, so CLI runs are reported separately and are not parity evidence.
 
 ## Generated Task Structure
 
@@ -73,11 +73,11 @@ uv run gdm-situational-awareness --task-ids database_tool_easy_easy --output-dir
 
 ## Comparison with Original Benchmark (Parity)
 
-Parity has **not** been run yet. Per Step 4 of the adapter guide, agents, models, run counts, and API provisioning must be agreed with the Harbor team first, and the Scenario 3 custom agent (see Adapter Features) must be implemented so the same solver dynamics run on both sides. Planned metric: per-challenge binary success aggregated as solved-challenges (≥1 success in N trials) and mean per-trial success, reported as mean ± sample SEM over ≥3 matched runs per side (ADP-PARITY, ADP-STATS).
+Parity has **not** been run yet. Per Step 4 of the adapter guide, agents, models, run counts, and API provisioning must be agreed with the Harbor team first. The Scenario 3 custom agent is implemented (see Adapter Features) but has not run a real-model episode yet. Planned metric: per-challenge binary success aggregated as solved-challenges (≥1 success in N trials) and mean per-trial success, reported as mean ± sample SEM over ≥3 matched runs per side (ADP-PARITY, ADP-STATS).
 
 | Agent | Model | Metric | Runs | Dataset Size | Original (mean ± SEM) | Harbor (mean ± SEM) |
 |-------|-------|--------|------|--------------|-----------------------|---------------------|
-| TBD (custom parity agent) | TBD | success rate | 0 | 22 | not run | not run |
+| gdm-self-reasoning-parity-agent@0.1.0 | TBD | success rate | 0 | 22 | not run | not run |
 
 Planned reproduction (commands are the intended shapes, to be finalized with the team):
 
@@ -85,8 +85,8 @@ Planned reproduction (commands are the intended shapes, to be finalized with the
 # Original side (Inspect, pinned checkout):
 cd inspect_evals
 uv run inspect eval inspect_evals/gdm_self_reasoning_database_tool --model <provider/model> --epochs 10
-# Harbor side (after the custom parity agent lands):
-harbor run -p datasets/gdm-situational-awareness -a <gdm-parity-agent> -m <provider/model>
+# Harbor side:
+PYTHONPATH=src/gdm-situational-awareness/src harbor run -p datasets/gdm-situational-awareness -a gdm_situational_awareness.custom_agent.agent:GDMSelfReasoningParityAgent -m <provider/model>
 ```
 
 Links: [paper](https://arxiv.org/abs/2505.01420) · [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_evals) · Adapter PR: TBD · Dataset PR: TBD · HF parity PR: TBD

@@ -113,10 +113,10 @@ are standard.
 
 ## Verdict
 
-- **GO-WITH-TEAM** (generation done; parity gated on team + custom agent).
+- **GO-WITH-TEAM** (generation, oracle, and custom agent done; parity gated on team terms + real-model smoke run).
 - Blockers: none for generation or oracle (Step 3 done 2026-11-15).
   For acceptance: (a) Step 4 team agreement incl. claim of Adapter
-  List row 242; (b) custom parity agent implementation;
+  List row 242; (b) first real-model smoke run of the implemented custom parity agent;
   (c) registry existence check (1.2); (d) WIP PR with the oracle
   result (guide asks for a screenshot; the Harbor job result is the
   stronger evidence to link).
