@@ -23,7 +23,7 @@
         "parity_matching_agents": [],
         "parity_unmatching_agents": [],
         "parity_costs": null,
-        "notes": "WIP: generation implemented; registry_benchmark_size=0 because the dataset is not published yet. Parity not run. Scenario 3: a custom parity agent replicating the Inspect solver dynamics is planned but not implemented, so added_agents is still None. Oracle candidates are scripted (upstream ships none) and unverified under Harbor."
+        "notes": "WIP: generation implemented; registry_benchmark_size=0 because the dataset is not published yet. Parity not run. Scenario 3: a custom parity agent replicating the Inspect solver dynamics is planned but not implemented, so added_agents is still None. Scripted oracle solutions (upstream ships none) pass Harbor oracle verification 22/22 at reward 1.0 (2026-11-15, Harbor 0.26.0)."
       }
     ]
   }

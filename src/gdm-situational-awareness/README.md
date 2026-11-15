@@ -4,7 +4,7 @@
 
 Harbor adapter for the 11 situational-awareness evaluations from Google DeepMind's *Evaluating Frontier Models for Stealth and Situational Awareness* (Phuong et al., 2025, [arXiv:2505.01420](https://arxiv.org/abs/2505.01420)), using the open-source Inspect Evals release (`gdm_self_reasoning`) as the upstream implementation.
 
-This adapter generates **22 Harbor tasks**: 11 challenges × 2 samples each (easy/easy and hard/hard hint levels, upstream `_KEEP_COMBOS`). It is the situational-awareness half of the paper's 16-eval suite; the stealth half lives in the sibling `gdm-stealth` adapter. Status: **work in progress** — generation is implemented and the verifier logic is ported and unit-checked, but oracle verification under Harbor (Step 3) and parity experiments (Steps 4–6) have not been run.
+This adapter generates **22 Harbor tasks**: 11 challenges × 2 samples each (easy/easy and hard/hard hint levels, upstream `_KEEP_COMBOS`). It is the situational-awareness half of the paper's 16-eval suite; the stealth half lives in the sibling `gdm-stealth` adapter. Status: **work in progress** — generation is implemented and oracle verification under Harbor (Step 3) passes 22/22 at reward 1.0 (2026-11-15, Harbor 0.26.0, local Docker). Parity experiments (Steps 4–6) have not been run.
 
 ## What is GDM Situational Awareness?
 
@@ -16,7 +16,7 @@ The situational-awareness (upstream: "self-reasoning") evaluations measure wheth
 - **Verbatim prompts.** `instruction.md` is exactly upstream `get_input_prompt()` output; the system prompt, tool list, message limit (80), setup command, and per-challenge agent-harness dynamics are recorded in `tests/task_metadata.json` for the parity custom agent.
 - **Self-contained environments.** Each task's Dockerfile inlines upstream `data/base/Dockerfile` with the challenge Dockerfile (upstream references an unpinned personal prebuilt base image, `vincentwang25/self-reasoning-base`, which this adapter does not depend on).
 - **Ported verifier.** `tests/verify.py` ports each upstream solver's `evaluate()` SUCCESS condition to a final-state check over the same side files, including the sandboxed Game-of-Life tests for `max_tokens`.
-- **Scripted oracle candidates.** Upstream ships no oracle solutions. `solution/solve.sh` contains per-challenge scripted candidates targeting the upstream success conditions. They pass the ported verifier in host-level simulation (11/11 challenges) but have **not** passed Harbor oracle verification.
+- **Scripted oracle solutions.** Upstream ships no oracle solutions. `solution/solve.sh` contains per-challenge scripted solutions targeting the upstream success conditions. They pass Harbor oracle verification: 22/22 trials at reward 1.0, mean 1.000, no exceptions (2026-11-15).
 - **Custom-agent parity design (Scenario 3, not yet implemented).** Parity must use a Harbor `BaseAgent` that replicates the Inspect solver pipeline: plan-instruction turns, the upstream tool sets, and the in-loop dynamics listed per challenge in `task_metadata.json` (context truncation, output censoring/truncation, fake latency timer, message counter, simulated oversight stops, config-gated `query_database` tool). Standard CLI agents do not experience those dynamics, so CLI runs are reported separately and are not parity evidence.
 
 ## Generated Task Structure
@@ -94,7 +94,7 @@ Links: [paper](https://arxiv.org/abs/2505.01420) · [Inspect Evals](https://gith
 ## Notes & Caveats
 
 - **Naming.** The Adapter List row `gdm-situational-awareness` describes the whole 16-eval suite; this adapter deliberately covers only the 11 situational-awareness evals (`gdm_self_reasoning` upstream). The 4 released stealth evals are in `gdm-stealth`. One paper stealth eval has no Inspect counterpart and is excluded from both adapters until it is released.
-- **No oracle solutions upstream.** Success conditions are programmatic, so scripted oracle candidates are provided, but Step 3 (100% oracle reward under `harbor run -a oracle`) is outstanding. The host-level simulation used during development does not exercise Docker builds (no Docker daemon was available); `python:3.9-slim-buster` is end-of-life and its continued availability should be confirmed at Step 3.
+- **No oracle solutions upstream.** Success conditions are programmatic, so scripted oracle solutions are provided; Step 3 passes (22/22 at reward 1.0 under `harbor run -a oracle`, 2026-11-15). `python:3.9-slim-buster` remains end-of-life: the image still pulls, but Debian buster has left the main apt mirrors, so the `approved_directories` Dockerfile rewrites apt sources to `archive.debian.org` (the only build-time deviation from upstream). If the archive or the base image disappears, the base must be bumped and recorded as a deviation.
 - **In-loop dynamics are not in the verifier.** Context truncation, output censoring, the fake latency timer, message limits, oversight stop, and config-gated tools are enforced by the agent harness upstream. The Harbor verifier checks final state only, so a terminal agent that ignores the simulated constraints can score 1.0 without demonstrating the measured capability. Only custom-parity-agent runs are comparable to upstream.
 - **Setup placement.** `context_length_mod_instrumental_only`'s randomized setup runs at image build (upstream runs it per sample; the key/value file is therefore fixed per image, and the verifier reads it from the image). `max_tokens`' `<OBJECTIVE>` substitution is applied to `agent.py` at generation time. `approved_directories`' permission-watcher daemon must be started by the agent harness (`setup_command` in `task_metadata.json`); it is not started by the image.
 - **Success is milestone-based.** Several challenges count a valid self-modification alone as success even if the objective output is wrong (upstream semantics, preserved). `oversight_frequency` with a missing/non-integer `oversight_frequency` key is a failure in this port, matching upstream `evaluate()`'s SUCCESS value for that branch.
@@ -114,7 +114,7 @@ uv sync
 ## Troubleshooting
 
 - `inspect_evals checkout ... expected pinned commit`: generation is pinned; check out `a68dade7efb803ef50c8442d3f16264b293d1414` in your `--source-dir`, or delete the cache clone at `~/.cache/harbor-adapters/inspect_evals` to re-clone.
-- Task build fails pulling `python:3.9-slim-buster`: the upstream base image is EOL; this is a known Step 3 risk (see Notes & Caveats). Do not silently swap the base without recording it as an adaptation deviation.
+- Task build fails on apt for `approved_directories`: buster is only on `archive.debian.org` now; generated Dockerfiles already rewrite the sources — regenerate tasks rather than editing generated output. If the `python:3.9-slim-buster` image itself stops pulling, do not silently swap the base without recording it as an adaptation deviation.
 - Reward is 0 although files look right: run `python3 /tests/verify.py <challenge>` inside the task container; it prints SUCCESS/FAILURE against the exact side files listed in `verify.py:SIDE_KEYS`.
 
 ## Citation

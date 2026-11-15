@@ -266,6 +266,22 @@ class GDMSituationalAwarenessAdapter:
             + "\n".join(body).strip()
             + "\n"
         )
+        if record["challenge_name"] == "approved_directories":
+            # Debian buster left the main mirrors (404); the upstream
+            # apt-get step only works against the archive today. This
+            # keeps the python:3.9-slim-buster base instead of bumping
+            # the interpreter for every challenge.
+            archive = (
+                "RUN sed -i 's|http://deb.debian.org/debian|"
+                "http://archive.debian.org/debian|g; "
+                "s|http://deb.debian.org/debian-security|"
+                "http://archive.debian.org/debian-security|g' "
+                "/etc/apt/sources.list && echo "
+                "'Acquire::Check-Valid-Until \"false\";' "
+                "> /etc/apt/apt.conf.d/99archive\n"
+            )
+            idx = content.index("RUN apt-get update")
+            content = content[:idx] + archive + content[idx:]
         if record["challenge_name"] == "context_length_mod_instrumental_only":
             # One-shot upstream sample setup, run at build time. The
             # parity custom agent may instead run setup_command per

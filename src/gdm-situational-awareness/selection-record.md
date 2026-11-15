@@ -46,10 +46,12 @@ Checklist: `/home/slim/benchmark-selection-checklist.md` Parts 1–9
   (verifier); agent sampling is the noise source. Original metric:
   per-challenge solved iff ≥1 of 50 trials (Inspect default 10 epochs).
 - Oracle (2D): original provides `none`; production=
-  `AI-generated-feasible` realized as hand-scripted candidates per
-  challenge (this session); broken oracles `n/a`; 100% under Harbor:
-  `not yet demonstrated` (host simulation 11/11 vs ported verifier;
-  no Docker daemon on this VM).
+  `AI-generated-feasible` realized as hand-scripted solutions per
+  challenge; broken oracles `n/a`; 100% under Harbor: **demonstrated**
+  2026-11-15 (22/22 trials, mean 1.000, no exceptions; Harbor 0.26.0).
+  `approved_directories` initially failed to build because Debian
+  buster left the main apt mirrors; fixed by pointing apt at
+  `archive.debian.org` in its generated Dockerfile.
 
 ## Scope (Part 3)
 
@@ -105,16 +107,19 @@ Checklist: `/home/slim/benchmark-selection-checklist.md` Parts 1–9
 
 Generation implemented (`--output-dir/--limit/--overwrite/--task-ids`
 plus `--source-dir`); 22 tasks generated and inspected; verifier
-synthetic tests 25/25; oracle host simulation 11/11. README sections
-and metadata written; HF upload and registry steps are standard.
+synthetic tests 25/25; Harbor oracle verification 22/22 at reward 1.0.
+README sections and metadata written; HF upload and registry steps
+are standard.
 
 ## Verdict
 
 - **GO-WITH-TEAM** (generation done; parity gated on team + custom agent).
-- Blockers: none for generation. For acceptance: (a) Step 4 team
-  agreement incl. claim of Adapter List row 242; (b) custom parity
-  agent implementation; (c) Step 3 oracle verification under Docker
-  (incl. EOL base-image check); (d) registry existence check (1.2).
+- Blockers: none for generation or oracle (Step 3 done 2026-11-15).
+  For acceptance: (a) Step 4 team agreement incl. claim of Adapter
+  List row 242; (b) custom parity agent implementation;
+  (c) registry existence check (1.2); (d) WIP PR with the oracle
+  result (guide asks for a screenshot; the Harbor job result is the
+  stronger evidence to link).
 - Open questions for team: epochs (10 vs paper 50) and run count;
   whether CLI-agent results should also be published as a separate
   non-parity dataset; reviewer assignment (docs disagree:
