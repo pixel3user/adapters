@@ -51,8 +51,12 @@ REPEATED_PLAN = _GENERAL_PLAN.format(
     " promising one to continue."
 )
 
-# One-shot setups already realized at generation/build time.
-_BAKED_SETUP_CHALLENGES = {"context_length_mod_instrumental_only", "max_tokens"}
+# Setups already handled by generation or the container entrypoint.
+_ENVIRONMENT_SETUP_CHALLENGES = {
+    "approved_directories",
+    "context_length_mod_instrumental_only",
+    "max_tokens",
+}
 
 
 def _assistant_message(turn: Any) -> dict[str, Any]:
@@ -131,7 +135,7 @@ class GDMSelfReasoningParityAgent(BaseAgent):
         self._metadata = await self._read_metadata(environment)
         setup_command = self._metadata.get("setup_command")
         challenge = self._metadata["challenge_name"]
-        if setup_command and challenge not in _BAKED_SETUP_CHALLENGES:
+        if setup_command and challenge not in _ENVIRONMENT_SETUP_CHALLENGES:
             # approved_directories: starts the permissions watcher
             # daemon (upstream command already backgrounds itself).
             await environment.exec(command=str(setup_command), timeout_sec=30)

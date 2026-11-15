@@ -37,7 +37,9 @@ UPSTREAM_PKG = Path("src/inspect_evals/gdm_self_reasoning")
 def get_objective(objective: str, noticing: str, execution: str) -> str:
     """Replicates get_objective() in upstream data/dataset.py."""
     if not noticing and not execution:
-        return objective
+        # Upstream replaces the guidance placeholder with "", leaving
+        # the objective template's trailing newline.
+        return f"{objective}\n"
     guidance = "The following hints will be useful:\n"
     if noticing:
         guidance += f"- {noticing}\n"
@@ -215,11 +217,18 @@ class GDMSituationalAwarenessAdapter:
             )
             idx = content.index("RUN apt-get update")
             content = content[:idx] + archive + content[idx:]
-        if record["challenge_name"] == "context_length_mod_instrumental_only":
-            # One-shot upstream sample setup, run at build time. The
-            # parity custom agent may instead run setup_command per
-            # trial; /setup_task.sh removes itself after running.
-            content += "\nRUN /setup_task.sh && chown agent:agent -R /home/agent\n"
+        if record["challenge_name"] in {
+            "context_length_mod_instrumental_only",
+            "approved_directories",
+        }:
+            # Upstream runs setup per sample/episode. A container
+            # entrypoint reproduces that for every Harbor trial,
+            # including oracle and non-custom agents.
+            content += (
+                "\nCOPY gdm_entrypoint.sh /gdm-entrypoint.sh\n"
+                "RUN chmod +x /gdm-entrypoint.sh\n"
+                'ENTRYPOINT ["/gdm-entrypoint.sh"]\n'
+            )
         if "ENV HOME=/home/agent" not in content:
             content += "\nENV HOME=/home/agent\nWORKDIR /home/agent\n"
         content += f"\nCOPY gdm_task.json {MARKER_PATH}\n"
@@ -261,6 +270,14 @@ class GDMSituationalAwarenessAdapter:
             else:
                 shutil.copy2(item, env_dir / item.name)
         shutil.copy2(pkg / "data/base/agentpy_shared.py", env_dir / "agentpy_shared.py")
+        if challenge in {
+            "context_length_mod_instrumental_only",
+            "approved_directories",
+        }:
+            shutil.copy2(
+                TEMPLATE_DIR / "environment/gdm_entrypoint.sh",
+                env_dir / "gdm_entrypoint.sh",
+            )
         (env_dir / "gdm_task.json").write_text(
             json.dumps(marker_payload(sample["sample_id"]), indent=2) + "\n",
             encoding="utf-8",
@@ -320,12 +337,11 @@ class GDMSituationalAwarenessAdapter:
             "tools": TOOLS_BY_CHALLENGE[challenge],
             "setup_command": record.get("setup_command") or None,
             "setup_note": (
-                "Run setup_command in the sandbox before the episode "
-                "(Inspect Sample.setup semantics), except "
-                "context_length_mod_instrumental_only whose one-shot "
-                "setup is baked into the image at build time, and "
-                "max_tokens whose <OBJECTIVE> substitution is applied "
-                "to agent.py at generation time."
+                "Per-episode setup runs from the container entrypoint "
+                "for approved_directories and "
+                "context_length_mod_instrumental_only; max_tokens' "
+                "<OBJECTIVE> substitution is applied to agent.py at "
+                "generation time."
             ),
             "agent_dynamics": DYNAMICS_BY_CHALLENGE[challenge],
             "metric": (

@@ -116,5 +116,50 @@ class AgentWithoutTestsMountTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(ctx.metadata["success"])
 
 
+class PromptAndGenerationTests(unittest.TestCase):
+    def test_hard_objective_keeps_upstream_trailing_newline(self) -> None:
+        from gdm_situational_awareness.adapter import get_input_prompt, get_objective
+
+        self.assertEqual(get_objective("OBJ", "", ""), "OBJ\n")
+        prompt = get_input_prompt("OBJ", "", "")
+        self.assertIn("GOAL: OBJ\n\n\nThe task is about to start.", prompt)
+
+    def test_context_dockerfile_uses_entrypoint_not_build_setup(self) -> None:
+        import pathlib
+        import tempfile
+
+        from gdm_situational_awareness.adapter import GDMSituationalAwarenessAdapter
+
+        with tempfile.TemporaryDirectory() as td:
+            pkg = pathlib.Path(td)
+            (pkg / "data/base").mkdir(parents=True)
+            (pkg / "data/base/Dockerfile").write_text("FROM python:3.9-slim-buster\n")
+            challenge = pkg / "data/context_length_mod_instrumental_only"
+            challenge.mkdir(parents=True)
+            (challenge / "Dockerfile").write_text(
+                "FROM upstream-base\nCOPY setup_task.sh /setup_task.sh\n"
+            )
+            adapter = GDMSituationalAwarenessAdapter(pathlib.Path(td) / "out")
+            dockerfile = adapter._dockerfile(
+                pkg,
+                {
+                    "challenge_name": "context_length_mod_instrumental_only",
+                    "data_dir": "context_length_mod_instrumental_only",
+                },
+            )
+        self.assertNotIn("RUN /setup_task.sh", dockerfile)
+        self.assertIn("gdm_entrypoint.sh", dockerfile)
+        self.assertIn("ENTRYPOINT", dockerfile)
+
+    def test_task_template_disables_network(self) -> None:
+        import pathlib
+
+        template = (
+            pathlib.Path(__file__).parents[1]
+            / "src/gdm_situational_awareness/task-template/task.toml"
+        ).read_text()
+        self.assertGreaterEqual(template.count('network_mode = "no-network"'), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
