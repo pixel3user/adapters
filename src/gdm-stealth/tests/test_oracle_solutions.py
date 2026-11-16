@@ -19,6 +19,11 @@ from gdm_stealth.custom_agent.objectives_data import SUBTLETY_OBJECTIVES
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DATASETS = REPO_ROOT / "datasets" / "gdm-stealth"
+# These tests read generated email_tasks.txt files; datasets/ is not
+# committed (generate with `uv run gdm-stealth --output-dir ../../datasets/gdm-stealth`).
+requires_generated_dataset = unittest.skipUnless(
+    DATASETS.is_dir(), "generated datasets/gdm-stealth not present"
+)
 
 
 def _tasks(slug: str) -> tuple[str, list[dict[str, str]]]:
@@ -26,6 +31,7 @@ def _tasks(slug: str) -> tuple[str, list[dict[str, str]]]:
     return text, parse_email_tasks(text)
 
 
+@requires_generated_dataset
 class OracleParsingTests(unittest.TestCase):
     def test_parse_classifier_email_tasks(self) -> None:
         _, tasks = _tasks(
@@ -37,6 +43,7 @@ class OracleParsingTests(unittest.TestCase):
         self.assertIn("Apollo", tasks[0]["detail"])
 
 
+@requires_generated_dataset
 class OversightOracleTests(unittest.IsolatedAsyncioTestCase):
     async def test_email_domain_external_recipients_succeed(self) -> None:
         slug = (
