@@ -30,6 +30,13 @@ network_mode = "no-network"
 user = "agent"
 timeout_sec = 3600.0
 
+[solution]
+timeout_sec = 1800.0
+
+[solution.env]
+GDM_RATER_BASE_URL = "${GDM_RATER_BASE_URL:-https://openrouter.ai/api/v1}"
+GDM_RATER_API_KEY = "${GDM_RATER_API_KEY:-}"
+
 [environment]
 build_timeout_sec = 600.0
 cpus = 1

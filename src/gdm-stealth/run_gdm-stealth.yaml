@@ -1,26 +1,29 @@
-# NOTE: gdm-stealth tasks require the parity custom agent
-# (gdm_stealth.custom_agent) to host episode tools/raters and write the outcome
-# file. The oracle agent below cannot pass these tasks (solve.sh
-# exits 1 by design); see README Notes & Caveats.
+# Single entry point for gdm-stealth (docs Step 3): the built-in
+# oracle agent replays each task's stored reference solution
+# in-container (solution/solve.sh + replay.py + trajectory.json).
+# Role models are called from inside the container, so the rater
+# endpoint is allowlisted for the agent phase and credentials come
+# from [solution.env] in each task.toml (export GDM_RATER_API_KEY,
+# e.g. your OpenRouter key, before running).
+#
+#   harbor run -c src/gdm-stealth/run_gdm-stealth.yaml
 jobs_dir: jobs
 n_attempts: 1
 timeout_multiplier: 1.0
 orchestrator:
   type: local
-  n_concurrent_trials: 4
+  n_concurrent_trials: 1
   quiet: false
 environment:
   type: docker
-  # type: daytona
   force_build: true
   delete: true
-  # env:
-  #   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-  #   ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL}
-  #   DAYTONA_API_KEY: ${DAYTONA_API_KEY}
 agents:
+  # Default: oracle agent for verification
   - name: oracle
-  # - name: claude-code
-  #   model_name: anthropic/claude-haiku-4-5-20251001
+    extra_allowed_hosts:
+      - openrouter.ai
+  # Parity/custom-agent runs use oracle_gdm-stealth.yaml /
+  # parity_gdm-stealth.yaml instead.
 datasets:
   - path: datasets/gdm-stealth

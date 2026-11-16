@@ -113,6 +113,7 @@ class GDMStealthParityAgent(BaseAgent):
         rater_model_company: str = "google",
         strategic_seed: int | None = None,
         message_limit: int | None = None,
+        role_temperature: float | None = None,
         **kwargs: Any,
     ):
         super().__init__(logs_dir=logs_dir, model_name=model_name, **kwargs)
@@ -130,6 +131,11 @@ class GDMStealthParityAgent(BaseAgent):
         self._rater_model_company = rater_model_company
         self._strategic_seed = strategic_seed
         self._message_limit_override = message_limit
+        # None keeps upstream role-model sampling (parity default);
+        # the oracle pins it for reproducible replays.
+        self._role_temperature = (
+            None if role_temperature is None else float(role_temperature)
+        )
         self._metadata: dict[str, Any] = {}
 
     @staticmethod
@@ -165,6 +171,7 @@ class GDMStealthParityAgent(BaseAgent):
             model,
             base_url=self._rater_base_url or os.environ.get("GDM_RATER_BASE_URL"),
             api_key=api_key,
+            temperature=self._role_temperature,
         )
 
     def _role_model(self, role: str) -> TextModel | None:

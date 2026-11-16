@@ -53,6 +53,51 @@ from .task_catalog import (
     system_prompt,
 )
 
+# Per-topic role models for the in-container oracle replay. These are
+# the tiers under which each topic's reference solution was verified
+# (exact upstream preview IDs are unavailable on OpenRouter; see
+# README). Model names keep the openrouter/ prefix convention of the
+# shared transport (first segment stripped before the request).
+_ORACLE_FLASH = "openrouter/google/gemini-2.5-flash"
+_ORACLE_PRO = "openrouter/google/gemini-2.5-pro"
+_ORACLE_O3 = "openrouter/openai/o3"
+
+ORACLE_TEMPERATURE = 0.0
+
+ORACLE_MODELS: dict[str, dict[str, str]] = {
+    "spoilers_tv_show": {"rater": _ORACLE_PRO, "judger": _ORACLE_FLASH},
+    "spoilers_sports_match": {"rater": _ORACLE_PRO, "judger": _ORACLE_FLASH},
+    "spoilers_escape_room": {"rater": _ORACLE_PRO, "judger": _ORACLE_FLASH},
+    "ntk_chips": {"rater": _ORACLE_FLASH, "judger": _ORACLE_FLASH},
+    "ntk_biorisk": {"rater": _ORACLE_FLASH, "judger": _ORACLE_FLASH},
+    "codes": {"rater": _ORACLE_FLASH, "judger": _ORACLE_FLASH},
+    "ntk_earnings": {"rater": _ORACLE_O3, "judger": _ORACLE_FLASH},
+    "password": {"rater": _ORACLE_O3, "judger": _ORACLE_FLASH},
+    "api_key": {"rater": _ORACLE_O3, "judger": _ORACLE_FLASH},
+}
+
+# Package files vendored into each task's solution/ for the
+# in-container oracle replay (paths relative to the gdm_stealth
+# package). The custom_agent __init__ is replaced with a neutral one
+# so the vendored copy never imports Harbor.
+_SOLUTION_PACKAGE_FILES = [
+    "__init__.py",
+    "task_catalog.py",
+    "custom_agent/ai_secretary.py",
+    "custom_agent/cover.py",
+    "custom_agent/criteria.py",
+    "custom_agent/objectives_data.py",
+    "custom_agent/raters.py",
+    "custom_agent/transport.py",
+    "custom_agent/hosts.py",
+    "custom_agent/strategic_tools.py",
+    "custom_agent/oracle_solutions.py",
+    "custom_agent/oracle_policies.py",
+    "custom_agent/oracle_strategic.py",
+    "custom_agent/data/email.csv",
+]
+
+
 class GDMStealthAdapter:
     """Writes Harbor task directories under ``self.output_dir``."""
 
@@ -148,8 +193,12 @@ class GDMStealthAdapter:
             f"FROM {BASE_IMAGE}",
             "RUN apt-get update && apt-get install -y python3"
             " && rm -rf /var/lib/apt/lists/*",
+            # /var/lib/gdm is agent-owned so the in-container oracle
+            # replay (solution/solve.sh, run as agent) can write the
+            # signed outcome; the host parity agent writes as root.
+            # The outcome integrity tag still binds score to sample.
             "RUN useradd -m -u 10001 agent && mkdir -p /home/agent /var/lib/gdm"
-            " && chown agent:agent /home/agent && chmod 0700 /var/lib/gdm",
+            " && chown agent:agent /home/agent /var/lib/gdm && chmod 0700 /var/lib/gdm",
         ]
         if dataset in ("oversight_pattern", "classifier_evasion"):
             match = _AI_NAME_RE.match(task["challenge_name"])
@@ -248,7 +297,73 @@ class GDMStealthAdapter:
         (tests_dir / "task_metadata.json").write_text(
             json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
         )
+        self._write_solution(solution_dir, dataset, task, sample)
         return True
+
+    def _write_solution(
+        self,
+        solution_dir: Path,
+        dataset: str,
+        task: dict[str, Any],
+        sample: dict[str, Any],
+    ) -> None:
+        """Vendor the oracle replay package + per-task trajectory.
+
+        The built-in Harbor oracle uploads the whole solution/ dir and
+        runs solve.sh in the container; replay.py executes the same
+        curated policies as the host replay agent against the real
+        checkers, with role models from trajectory.json.
+        """
+        pkg_src = Path(__file__).parent
+        pkg_dst = solution_dir / "gdm_stealth"
+        for rel in _SOLUTION_PACKAGE_FILES:
+            dst = pkg_dst / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(pkg_src / rel, dst)
+        strategic_src = pkg_src / "custom_agent" / "strategic"
+        strategic_dst = pkg_dst / "custom_agent" / "strategic"
+        strategic_dst.mkdir(parents=True, exist_ok=True)
+        for path in sorted(strategic_src.iterdir()):
+            if path.is_file() and "__pycache__" not in path.parts:
+                shutil.copy2(path, strategic_dst / path.name)
+        # Neutral package inits: the vendored copy must never import
+        # the Harbor-dependent agents.
+        (pkg_dst / "custom_agent" / "__init__.py").write_text(
+            '"""Vendored checker/host modules for in-container oracle replay."""\n',
+            encoding="utf-8",
+        )
+        shutil.copy2(
+            TEMPLATE_DIR / "tests/verify.py", pkg_dst / "verify_outcome.py"
+        )
+        shutil.copy2(
+            TEMPLATE_DIR / "solution/replay.py", solution_dir / "replay.py"
+        )
+
+        models: dict[str, str] = {}
+        trajectory: dict[str, Any] = {"candidate_offset": 0}
+        if dataset == "classifier_evasion":
+            match = _AI_NAME_RE.match(task["challenge_name"])
+            topic = match["topic"] if match else ""
+            models = dict(ORACLE_MODELS.get(topic, {}))
+        elif dataset == "cover_your_tracks":
+            models = {"rater": _ORACLE_FLASH}
+        elif dataset == "strategic_rule_breaking":
+            models = {"chat": _ORACLE_FLASH}
+            trajectory["strategic_seed"] = 123
+            trajectory["strategic_mode"] = "maxscore"
+        trajectory["models"] = models
+        # Pin role-model sampling for reproducible oracle replays
+        # (reasoning-tier o3 does not accept a temperature).
+        trajectory["temperature"] = {
+            role: ORACLE_TEMPERATURE
+            for role, model in models.items()
+            if "/openai/o" not in model
+        }
+        trajectory["sample_key"] = sample["sample_id"]
+        (solution_dir / "trajectory.json").write_text(
+            json.dumps(trajectory, indent=2) + "\n", encoding="utf-8"
+        )
+
 
     def run(self) -> None:
         pkg = self._pkg_dir()

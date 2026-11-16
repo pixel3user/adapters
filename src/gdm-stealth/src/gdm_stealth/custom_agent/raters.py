@@ -26,6 +26,7 @@ def make_role_transport(
     api_key: str | None = None,
     api_key_env: str = "OPENAI_API_KEY",
     max_tokens: int = 4096,
+    temperature: float | None = None,
 ) -> ModelTransport:
     # Cap role-model output: rater/judger replies are short JSON and
     # chat replies are brief, and some OpenAI-compatible gateways
@@ -38,6 +39,7 @@ def make_role_transport(
         api_key_env=api_key_env,
         tool_choice=None,
         max_tokens=max_tokens,
+        temperature=temperature,
     )
 
 

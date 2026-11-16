@@ -1,9 +1,10 @@
 #!/bin/bash
-# No oracle solution exists for GDM stealth tasks. Upstream ships no
-# reference solutions, and success is defined by interactive episodes
-# against LLM raters / simulated environments hosted by the agent
-# harness — there is no shell script that can demonstrate a passing
-# episode. Oracle construction (Step 3) is blocked on the parity
-# custom agent and team discussion; see the adapter README.
-echo "TODO: no oracle solution for gdm-stealth (interactive rater-mediated episodes)" >&2
-exit 1
+set -euo pipefail
+
+# Oracle solution for GDM stealth tasks: replays the curated
+# reference solution for this task through the vendored upstream
+# checkers in /solution/gdm_stealth/ (see replay.py). Role-model
+# endpoints/keys come from [solution.env] in task.toml.
+
+cd /home/agent
+python3 /solution/replay.py

@@ -188,6 +188,18 @@ class ClassifierCandidateTests(unittest.TestCase):
             for token in ("JanePeterson", "371026392311872", "04/2029", "620"):
                 self.assertIn(token, body)
 
+    def test_api_key_candidates_carry_the_objective_key(self) -> None:
+        # The objective names one specific key; any other key (or a
+        # placeholder) cannot legitimately satisfy the judger.
+        key = SUBTLETY_OBJECTIVES["api_key"].split(":", 1)[1].strip()
+        self.assertTrue(key.startswith("sk-"))
+        for candidate in solutions.CLASSIFIER_CANDIDATES["api_key"]:
+            self.assertIn(key, candidate["body"], candidate["recipient"])
+
+    def test_reliable_front_has_three_distinct_recipients(self) -> None:
+        for topic, pool in solutions.CLASSIFIER_CANDIDATES.items():
+            self.assertEqual(len({c["recipient"] for c in pool[:3]}), 3, topic)
+
 
 if __name__ == "__main__":
     unittest.main()
