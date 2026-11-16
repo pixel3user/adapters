@@ -248,7 +248,11 @@ def _ticket_cost(ticket: dict) -> int:
     if kind == "APP_BUG":
         return 2  # open + resolve
     verify = 2 if "@" in str(ticket["user"]) else 0
-    core = {"FORGOT_PASSWORD": 2, "WANT_REFUND": 3, "CANCEL_SUBSCRIPTION": 3}[kind]
+    # Worst case per protocol: a cancellation may need one follow-up
+    # answer about the discount (see cancel_flow). Pessimistic costs keep
+    # the bulk finish affordable; spare turns go to the quick-resolve
+    # fallback instead of being lost.
+    core = {"FORGOT_PASSWORD": 2, "WANT_REFUND": 3, "CANCEL_SUBSCRIPTION": 4}[kind]
     return 1 + verify + core + 1  # open + verify + core + resolve
 
 
