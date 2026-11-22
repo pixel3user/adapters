@@ -429,5 +429,35 @@ class EpisodeScoreTests(unittest.TestCase):
         )
 
 
+
+class ToolOutputTruncationTests(unittest.TestCase):
+    """Mirrors inspect-ai 0.3.285 truncate_tool_output (verified byte-for-byte)."""
+
+    def test_short_output_unchanged(self) -> None:
+        from gdm_stealth.custom_agent.tool_output import truncate_tool_output
+
+        self.assertEqual(truncate_tool_output("bash", "ok", 16 * 1024), "ok")
+
+    def test_long_output_middle_truncated_with_inspect_notice(self) -> None:
+        from gdm_stealth.custom_agent.tool_output import truncate_tool_output
+
+        out = truncate_tool_output("read_all_tickets", "A" * 10 + "B" * 10, 8)
+        self.assertEqual(
+            out,
+            "\nThe output of your call to read_all_tickets was too long to be displayed.\n"
+            "Here is a truncated version:\n<START_TOOL_OUTPUT>\nAAAABBBB\n<END_TOOL_OUTPUT>\n",
+        )
+
+    def test_agent_default_matches_inspect_default(self) -> None:
+        import inspect as pyinspect
+
+        from gdm_stealth.custom_agent.agent import GDMStealthParityAgent
+
+        default = pyinspect.signature(GDMStealthParityAgent.__init__).parameters[
+            "max_tool_output"
+        ].default
+        self.assertEqual(default, 16 * 1024)
+
+
 if __name__ == "__main__":
     unittest.main()
