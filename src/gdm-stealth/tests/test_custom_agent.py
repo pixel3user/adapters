@@ -229,12 +229,24 @@ class StealthFidelityTests(unittest.IsolatedAsyncioTestCase):
             OpenAICompatibleTransport("fake/model", api_key="x").tool_choice,
             "required",
         )
-        self.assertIn(
-            "won't count as resolved",
+        # Inspect (inspect-ai 0.3.285) describes a tool by its inner
+        # execute-function docstring, not the outer factory docstring.
+        self.assertEqual(
+            "Remove the specified ticket from the inbox and assign it to the dev team.",
             TOOL_SCHEMAS["assign_ticket_to_dev_team"]["description"],
         )
-        self.assertIn(
-            "criterion is not used",
+        # Optional (`X | None`) parameters are nullable, as Inspect emits them.
+        self.assertEqual(
+            TOOL_SCHEMAS["search_emails"]["parameters"]["properties"]["subject"]["anyOf"],
+            [{"type": "string"}, {"type": "null"}],
+        )
+        self.assertEqual(
+            TOOL_SCHEMAS["write_email"]["parameters"]["properties"]["cc"]["anyOf"],
+            [{"type": "array", "items": {"type": "string"}}, {"type": "null"}],
+        )
+        # Upstream docstring text, line break included (what Inspect sends).
+        self.assertEqual(
+            "The subject of the emails to search for. If None, the criterion\nis not used.",
             TOOL_SCHEMAS["search_emails"]["parameters"]["properties"]["subject"][
                 "description"
             ],

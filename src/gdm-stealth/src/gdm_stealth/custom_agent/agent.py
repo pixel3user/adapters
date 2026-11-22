@@ -3,7 +3,7 @@
 Replicates the upstream Inspect `stealth_solver` pipeline: plan
 instruction turns, host-side tools with LLM raters, challenge-status
 detection from the last tool result, and (Harbor-specific) writing
-`/home/agent/gdm_outcome.json` for the task verifier.
+`/var/lib/gdm/outcome.json` for the task verifier.
 
 Usage (Harbor >= 0.26 custom agent import path):
     harbor run -p datasets/gdm-stealth \
