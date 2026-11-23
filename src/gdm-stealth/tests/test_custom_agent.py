@@ -490,3 +490,86 @@ class ToolOutputTruncationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LiveTrajectoryGraderTests(unittest.IsolatedAsyncioTestCase):
+    def _turn(self, content="", calls=None, usage=None):
+        from gdm_stealth.custom_agent.transport import ModelTurn
+
+        return ModelTurn(content=content, tool_calls=calls or [], usage=usage or {})
+
+    def test_grader_calls_follow_their_agent_turn_and_count_per_model(self) -> None:
+        import pathlib
+        import tempfile
+
+        from harbor.models.trajectories import Trajectory
+        from harbor.utils.trajectory_utils import compute_model_usage
+
+        from gdm_stealth.custom_agent.atif import TrajectoryRecorder
+        from gdm_stealth.custom_agent.transport import ToolCall
+
+        with tempfile.TemporaryDirectory() as td:
+            rec = TrajectoryRecorder(
+                pathlib.Path(td), session_id="s", agent_name="a",
+                agent_version="1", model_name="ppapi/gpt-5-mini",
+            )
+            rec.add_message("system", "sys")
+            rec.add_message("user", "task")
+            rec.add_grader_call(
+                "rater", "ppapi/claude-sonnet-4-5",
+                [{"role": "user", "content": "rate this"}],
+                self._turn("GOOD", usage={"prompt_tokens": 7, "completion_tokens": 2}),
+            )
+            rec.add_grader_call(
+                "judger", "ppapi/gemini-2.5-flash",
+                [{"role": "user", "content": "judge"}], None, RuntimeError("boom"),
+            )
+            rec.add_agent_turn(
+                self._turn("", [ToolCall("c1", "send_email", {"x": 1})],
+                           {"prompt_tokens": 100, "completion_tokens": 10}),
+                [("c1", "sent")],
+            )
+            rec.flush()
+            traj = Trajectory.model_validate_json(
+                (pathlib.Path(td) / "trajectory.json").read_text()
+            )
+        kinds = [
+            (s.extra or {}).get("grader_role", s.source) for s in traj.steps
+        ]
+        self.assertEqual(kinds, ["system", "user", "agent", "rater", "judger"])
+        self.assertTrue(traj.steps[3].message.startswith("[grader call: rater"))
+        self.assertIn("ERROR: RuntimeError: boom", traj.steps[4].message)
+        self.assertFalse(traj.steps[3].extra["visible_to_tested_model"])
+        usage = compute_model_usage(traj)
+        self.assertEqual(usage["ppapi/gpt-5-mini"].n_input_tokens, 100)
+        self.assertEqual(usage["ppapi/claude-sonnet-4-5"].n_input_tokens, 7)
+        self.assertEqual(traj.final_metrics.total_prompt_tokens, 107)
+
+    async def test_role_transport_reports_calls_unchanged(self) -> None:
+        import pathlib
+        import tempfile
+
+        from gdm_stealth.custom_agent.agent import GDMStealthParityAgent
+
+        reply = self._turn("ok", usage={"prompt_tokens": 3})
+        seen = []
+
+        class Inner:
+            async def generate(self, messages, schemas):
+                seen.append(messages)
+                return reply
+
+        calls = []
+        with tempfile.TemporaryDirectory() as td:
+            agent = GDMStealthParityAgent(
+                logs_dir=pathlib.Path(td), model_name="m",
+                role_transports={"chat": Inner()},
+            )
+            t = agent._role_transport("chat")
+            out = await t.generate([{"role": "user", "content": "hi"}], [])
+            self.assertIs(out, reply)  # pass-through, untouched
+            agent._grader_sink = lambda *a: calls.append(a)
+            await t.generate([{"role": "user", "content": "again"}], [])
+        self.assertEqual(seen[1], [{"role": "user", "content": "again"}])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0], "chat")

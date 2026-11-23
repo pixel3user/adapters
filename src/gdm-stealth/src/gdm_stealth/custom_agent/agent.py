@@ -96,6 +96,30 @@ def _assistant_message(turn: Any) -> dict[str, Any]:
     return message
 
 
+class _RecordingTransport:
+    """Pass-through role transport that reports each grader call to the
+    agent's trajectory recorder (if one is active). Never alters calls."""
+
+    def __init__(self, inner: ModelTransport, role: str, model: str | None, agent: Any):
+        self._inner = inner
+        self._role = role
+        self._model = model
+        self._agent = agent
+
+    async def generate(self, messages, tool_schemas):
+        try:
+            turn = await self._inner.generate(messages, tool_schemas)
+        except BaseException as exc:
+            sink = getattr(self._agent, "_grader_sink", None)
+            if sink is not None:
+                sink(self._role, self._model, messages, None, exc)
+            raise
+        sink = getattr(self._agent, "_grader_sink", None)
+        if sink is not None:
+            sink(self._role, self._model, messages, turn, None)
+        return turn
+
+
 class GDMStealthParityAgent(BaseAgent):
     def __init__(
         self,
@@ -142,6 +166,7 @@ class GDMStealthParityAgent(BaseAgent):
             None if role_temperature is None else float(role_temperature)
         )
         self._metadata: dict[str, Any] = {}
+        self._grader_sink: Any = None
 
     @staticmethod
     def name() -> str:
@@ -161,7 +186,9 @@ class GDMStealthParityAgent(BaseAgent):
 
     def _role_transport(self, role: str) -> ModelTransport:
         if role in self._role_transports_override:
-            return self._role_transports_override[role]
+            return _RecordingTransport(
+                self._role_transports_override[role], role, None, self
+            )
         dataset = str(self._metadata.get("dataset_name", ""))
         model = self._role_name_overrides.get(role) or rater_model_for(
             self._rater_model_company, role, dataset
@@ -172,11 +199,16 @@ class GDMStealthParityAgent(BaseAgent):
             or os.environ.get("GOOGLE_API_KEY")
             or os.environ.get("OPENAI_API_KEY")
         )
-        return make_role_transport(
+        return _RecordingTransport(
+            make_role_transport(
+                model,
+                base_url=self._rater_base_url or os.environ.get("GDM_RATER_BASE_URL"),
+                api_key=api_key,
+                temperature=self._role_temperature,
+            ),
+            role,
             model,
-            base_url=self._rater_base_url or os.environ.get("GDM_RATER_BASE_URL"),
-            api_key=api_key,
-            temperature=self._role_temperature,
+            self,
         )
 
     def _role_model(self, role: str) -> TextModel | None:
@@ -281,15 +313,7 @@ class GDMStealthParityAgent(BaseAgent):
         metadata = self._metadata
         dataset = metadata["dataset_name"]
         env = EnvAccess(environment)
-        host = await self._make_host(env)
-        transport = self._transport()
         tool_names: list[str] = list(metadata["tools"])
-
-        messages: list[dict[str, Any]] = [
-            {"role": "system", "content": self._system_prompt(host)},
-            {"role": "user", "content": instruction},
-            {"role": "user", "content": INITIAL_PLAN},
-        ]
         # Live ATIF trajectory for `harbor view` (observational only).
         recorder = TrajectoryRecorder(
             self.logs_dir,
@@ -300,6 +324,15 @@ class GDMStealthParityAgent(BaseAgent):
             tool_definitions=schemas_for(tool_names),
             extra={"dataset_name": dataset, "sample_id": metadata.get("sample_id")},
         )
+        self._grader_sink = recorder.add_grader_call
+        host = await self._make_host(env)
+        transport = self._transport()
+
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": self._system_prompt(host)},
+            {"role": "user", "content": instruction},
+            {"role": "user", "content": INITIAL_PLAN},
+        ]
         for m in messages:
             recorder.add_message("system" if m["role"] == "system" else "user", m["content"])
         recorder.flush()

@@ -5,6 +5,16 @@ The agent rewrites `<logs_dir>/trajectory.json` after every model turn
 shows the episode step by step while it is still running, and Harbor
 reads token usage from `final_metrics` when the trial ends.
 
+Grader calls (classifier rater/judger, cover rater, strategic chat
+users/manager/reviewer) run inside tools, so the tested model never
+sees them. They are recorded as labelled steps (ATIF `agent` source,
+the only one that may carry `model_name` and token metrics) placed right after the
+agent turn whose tool triggered them, labelled as grader calls, with
+the grader's own `model_name` and token metrics. (Harbor's viewer does
+not render embedded `subagent_trajectories`, so inline steps are what
+makes them visible; Harbor's per-model usage then attributes their
+tokens to the grader model.)
+
 Recording is observational only: it never changes what the model sees,
 and any failure to record is swallowed so it cannot affect an episode.
 """
@@ -61,6 +71,8 @@ class TrajectoryRecorder:
         self._steps: list[Step] = []
         self._totals = {"prompt": 0, "completion": 0, "cached": 0}
         self._notes: str | None = None
+        self._pending_graders: list[Step] = []
+        self._grader_totals: dict[str, dict[str, int]] = {}
 
     # -- steps -------------------------------------------------------------
     def _next_id(self) -> int:
@@ -122,6 +134,73 @@ class TrajectoryRecorder:
                 ),
             )
         )
+        self.drain_grader_calls()
+
+    def add_grader_call(
+        self,
+        role: str,
+        model_name: str | None,
+        messages: list[dict[str, Any]],
+        turn: Any = None,
+        error: BaseException | None = None,
+    ) -> None:
+        """Queue one grader call; it is placed after the current agent turn."""
+        try:
+            prompt = "\n\n".join(
+                f"[{m.get('role', 'user')}]\n{m.get('content', '')}"
+                for m in messages
+            )
+            if error is not None:
+                response = f"ERROR: {type(error).__name__}: {error}"
+            else:
+                response = getattr(turn, "content", "") or ""
+            usage = (getattr(turn, "usage", None) or {}) if error is None else {}
+            metrics = None
+            if usage:
+                metrics = Metrics(
+                    prompt_tokens=int(usage.get("prompt_tokens", 0) or 0),
+                    completion_tokens=int(usage.get("completion_tokens", 0) or 0),
+                    cached_tokens=int(usage.get("cached_tokens", 0) or 0),
+                )
+                tot = self._grader_totals.setdefault(
+                    f"{role}:{model_name}", {"prompt": 0, "completion": 0, "cached": 0}
+                )
+                tot["prompt"] += metrics.prompt_tokens or 0
+                tot["completion"] += metrics.completion_tokens or 0
+                tot["cached"] += metrics.cached_tokens or 0
+            header = (
+                f"[grader call: {role} ({model_name}); "
+                "not shown to the tested model]"
+            )
+            self._pending_graders.append(
+                Step(
+                    step_id=1,  # renumbered when placed
+                    timestamp=_now(),
+                    # ATIF allows model_name/metrics only on agent-source
+                    # steps; the header and extra mark it as a grader call.
+                    source="agent",
+                    model_name=model_name,
+                    message=(
+                        f"{header}\n\n----- prompt -----\n{prompt}"
+                        f"\n\n----- response -----\n{response}"
+                    ),
+                    reasoning_content=(
+                        getattr(turn, "raw_reasoning", None) or None
+                        if error is None
+                        else None
+                    ),
+                    metrics=metrics,
+                    extra={"grader_role": role, "visible_to_tested_model": False},
+                )
+            )
+        except Exception:
+            logger.debug("grader record failed", exc_info=True)
+
+    def drain_grader_calls(self) -> None:
+        for step in self._pending_graders:
+            step.step_id = self._next_id()
+            self._steps.append(step)
+        self._pending_graders = []
 
     def set_notes(self, notes: str) -> None:
         self._notes = notes
@@ -134,10 +213,23 @@ class TrajectoryRecorder:
             steps=list(self._steps),
             notes=self._notes,
             final_metrics=FinalMetrics(
-                total_prompt_tokens=self._totals["prompt"],
-                total_completion_tokens=self._totals["completion"],
-                total_cached_tokens=self._totals["cached"],
+                total_prompt_tokens=self._totals["prompt"]
+                + sum(t["prompt"] for t in self._grader_totals.values()),
+                total_completion_tokens=self._totals["completion"]
+                + sum(t["completion"] for t in self._grader_totals.values()),
+                total_cached_tokens=self._totals["cached"]
+                + sum(t["cached"] for t in self._grader_totals.values()),
                 total_steps=len(self._steps),
+                extra={
+                    "tested_model": {
+                        "model_name": self._model_name,
+                        **{f"{k}_tokens": v for k, v in self._totals.items()},
+                    },
+                    "graders": {
+                        key: {f"{k}_tokens": v for k, v in tot.items()}
+                        for key, tot in self._grader_totals.items()
+                    },
+                },
             ),
             extra=self._extra or None,
         )
@@ -145,10 +237,11 @@ class TrajectoryRecorder:
     def flush(self) -> None:
         """Atomically rewrite trajectory.json; never raises."""
         try:
+            self.drain_grader_calls()
             data = json.dumps(self.build().to_json_dict(), ensure_ascii=False, indent=2)
             self.path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self.path.with_name(FILENAME + ".tmp")
             tmp.write_text(data, encoding="utf-8")
             tmp.replace(self.path)
         except Exception:  # recording must never break an episode
-            logger.debug("trajectory flush failed", exc_info=True)
+            logger.warning("trajectory.json not updated", exc_info=True)
