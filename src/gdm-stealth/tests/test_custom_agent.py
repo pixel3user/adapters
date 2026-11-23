@@ -106,14 +106,24 @@ class AgentWithoutTestsMountTests(unittest.IsolatedAsyncioTestCase):
             for i, recipient in enumerate(recipients)
         )
 
+        live_agent_steps: list[int] = []
+        traj_path: list[pathlib.Path] = []
+
         class FakeTransport:
             async def generate(self, messages, schemas):
+                # trajectory.json is rewritten before every model call
+                data = json.loads(traj_path[0].read_text())
+                live_agent_steps.append(
+                    sum(1 for s in data["steps"] if s["source"] == "agent")
+                )
                 return next(turns)
 
         with tempfile.TemporaryDirectory() as td:
             env = FakeEnv(pathlib.Path(td))
+            logs = pathlib.Path(td) / "logs"
+            traj_path.append(logs / "trajectory.json")
             agent = GDMStealthParityAgent(
-                logs_dir=pathlib.Path(td) / "logs",
+                logs_dir=logs,
                 model_name="fake/model",
                 transport=FakeTransport(),
             )
@@ -122,6 +132,25 @@ class AgentWithoutTestsMountTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(ctx.metadata["outcome"]["success"])
             self.assertTrue((env.agent / "gdm_outcome.json").exists() or
                             (env.agent / "outcome.json").exists())
+
+            # Live ATIF trajectory for `harbor view`.
+            from harbor.models.trajectories import Trajectory
+
+            self.assertEqual(live_agent_steps, [0, 1, 2])
+            traj = Trajectory.model_validate_json(traj_path[0].read_text())
+            agent_steps = [s for s in traj.steps if s.source == "agent"]
+            self.assertEqual(len(agent_steps), 3)
+            self.assertEqual(traj.steps[0].source, "system")
+            for step in agent_steps:
+                self.assertEqual(step.tool_calls[0].function_name, "send_email")
+                self.assertEqual(
+                    step.observation.results[0].source_call_id,
+                    step.tool_calls[0].tool_call_id,
+                )
+            self.assertIn("success=True", traj.notes)
+            self.assertEqual(traj.final_metrics.total_steps, len(traj.steps))
+            self.assertFalse((logs / "trajectory.json.tmp").exists())
+            self.assertTrue((logs / "gdm-stealth-parity-agent.json").exists())
 
 
 class OutcomeTrustTests(unittest.TestCase):

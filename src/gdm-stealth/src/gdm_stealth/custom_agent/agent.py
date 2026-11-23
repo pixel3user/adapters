@@ -42,6 +42,7 @@ from ..task_catalog import rater_model_for
 from .strategic.customer_support_env import CustomerSupportEnv
 from .strategic.model_shim import ShimModel
 from .strategic_tools import StrategicTools, get_handbook
+from .atif import TrajectoryRecorder
 from .tool_output import DEFAULT_MAX_TOOL_OUTPUT, truncate_tool_output
 from .transport import ModelTransport, OpenAICompatibleTransport
 
@@ -289,38 +290,62 @@ class GDMStealthParityAgent(BaseAgent):
             {"role": "user", "content": instruction},
             {"role": "user", "content": INITIAL_PLAN},
         ]
+        # Live ATIF trajectory for `harbor view` (observational only).
+        recorder = TrajectoryRecorder(
+            self.logs_dir,
+            session_id=f"{dataset}/{metadata.get('sample_id')}",
+            agent_name=self.name(),
+            agent_version=self.version(),
+            model_name=self.model_name,
+            tool_definitions=schemas_for(tool_names),
+            extra={"dataset_name": dataset, "sample_id": metadata.get("sample_id")},
+        )
+        for m in messages:
+            recorder.add_message("system" if m["role"] == "system" else "user", m["content"])
+        recorder.flush()
         message_limit = self._message_limit_override or int(
             metadata.get("message_limit", 120)
         )
         usage: dict[str, int] = {}
         status = "continue"
         last_tool_text = ""
-        while len(messages) < message_limit and status == "continue":
-            turn = await transport.generate(messages, schemas_for(tool_names))
-            for key in ("prompt_tokens", "completion_tokens", "cached_tokens"):
-                usage[key] = usage.get(key, 0) + int(turn.usage.get(key, 0) or 0)
-            messages.pop()  # step instruction, as upstream
-            messages.append(_assistant_message(turn))
-            tool_texts: list[str] = []
-            if turn.tool_calls:
-                for call in turn.tool_calls:
-                    try:
-                        result = await host.execute(call.name, call.arguments)
-                    except Exception as exc:  # Inspect surfaces tool errors
-                        result = f"Error: {exc}"
-                    tool_texts.append(result)
-                    result = truncate_tool_output(
-                        call.name, result, self._max_tool_output
-                    )
-                    messages.append(
-                        {"role": "tool", "tool_call_id": call.id, "content": result}
-                    )
-            extra = [] if turn.tool_calls else ["No tool usage is found. Try again."]
-            extra.append(REPEATED_PLAN)
-            messages.append({"role": "user", "content": "\n".join(extra)})
-            if tool_texts:
-                last_tool_text = tool_texts[-1]
-                status = challenge_status(last_tool_text)
+        try:
+            while len(messages) < message_limit and status == "continue":
+                turn = await transport.generate(messages, schemas_for(tool_names))
+                for key in ("prompt_tokens", "completion_tokens", "cached_tokens"):
+                    usage[key] = usage.get(key, 0) + int(turn.usage.get(key, 0) or 0)
+                messages.pop()  # step instruction, as upstream
+                messages.append(_assistant_message(turn))
+                tool_texts: list[str] = []
+                shown: list[tuple[str, str]] = []
+                if turn.tool_calls:
+                    for call in turn.tool_calls:
+                        try:
+                            result = await host.execute(call.name, call.arguments)
+                        except Exception as exc:  # Inspect surfaces tool errors
+                            result = f"Error: {exc}"
+                        tool_texts.append(result)
+                        result = truncate_tool_output(
+                            call.name, result, self._max_tool_output
+                        )
+                        messages.append(
+                            {"role": "tool", "tool_call_id": call.id, "content": result}
+                        )
+                        shown.append((str(call.id), result))
+                extra = [] if turn.tool_calls else ["No tool usage is found. Try again."]
+                extra.append(REPEATED_PLAN)
+                messages.append({"role": "user", "content": "\n".join(extra)})
+                if tool_texts:
+                    last_tool_text = tool_texts[-1]
+                    status = challenge_status(last_tool_text)
+                recorder.add_agent_turn(turn, shown)
+                if status == "continue" and len(messages) < message_limit:
+                    recorder.add_message("user", messages[-1]["content"])
+                recorder.flush()
+        except BaseException as exc:
+            recorder.set_notes(f"episode aborted: {type(exc).__name__}: {exc}")
+            recorder.flush()
+            raise
 
         outcome = self._outcome(dataset, status, last_tool_text, host, metadata)
         await env.write_file(
@@ -329,6 +354,11 @@ class GDMStealthParityAgent(BaseAgent):
         context.n_input_tokens = usage.get("prompt_tokens", 0)
         context.n_output_tokens = usage.get("completion_tokens", 0)
         context.n_cache_tokens = usage.get("cached_tokens", 0)
+        recorder.set_notes(
+            f"status={status}; outcome success={outcome.get('success')} "
+            f"score={outcome.get('score')}"
+        )
+        recorder.flush()
         context.metadata = {
             "dataset_name": dataset,
             "sample_id": metadata.get("sample_id"),
