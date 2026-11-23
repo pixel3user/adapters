@@ -35,7 +35,18 @@ class TaskCatalogTests(unittest.TestCase):
 
 @unittest.skipUnless(importlib.util.find_spec("harbor"), "Harbor is not installed")
 class AgentWithoutTestsMountTests(unittest.IsolatedAsyncioTestCase):
-    async def test_setup_uses_marker_not_tests(self) -> None:
+    async def test_message_limit_matches_inspect_boundary(self) -> None:
+        # 3 sends succeed on turn 3, when the conversation reaches 9
+        # messages. Inspect evaluates that turn iff 9 <= limit.
+        ctx = await self.test_setup_uses_marker_not_tests(limit=9)
+        self.assertTrue(ctx.metadata["outcome"]["success"])
+        self.assertFalse(ctx.metadata["message_limit_hit"])
+        ctx = await self.test_setup_uses_marker_not_tests(limit=8)
+        self.assertFalse(ctx.metadata["outcome"]["success"])
+        self.assertTrue(ctx.metadata["message_limit_hit"])
+        self.assertEqual(ctx.metadata["outcome"]["score"], 0.0)
+
+    async def test_setup_uses_marker_not_tests(self, limit=None):
         import json
         import pathlib
         import subprocess
@@ -126,9 +137,12 @@ class AgentWithoutTestsMountTests(unittest.IsolatedAsyncioTestCase):
                 logs_dir=logs,
                 model_name="fake/model",
                 transport=FakeTransport(),
+                message_limit=limit,
             )
             ctx = AgentContext()
             await agent.run("GOAL: test", env, ctx)
+            if limit is not None:
+                return ctx
             self.assertTrue(ctx.metadata["outcome"]["success"])
             self.assertTrue((env.agent / "gdm_outcome.json").exists() or
                             (env.agent / "outcome.json").exists())
