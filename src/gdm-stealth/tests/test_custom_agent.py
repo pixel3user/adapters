@@ -256,7 +256,7 @@ class StealthFidelityTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             OpenAICompatibleTransport("fake/model", api_key="x").tool_choice,
-            "required",
+            "auto",
         )
         # Inspect (inspect-ai 0.3.285) describes a tool by its inner
         # execute-function docstring, not the outer factory docstring.

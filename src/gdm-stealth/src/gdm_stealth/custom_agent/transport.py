@@ -59,7 +59,10 @@ class OpenAICompatibleTransport:
         max_tokens: int | None = None,
         request_timeout_sec: int = 300,
         strip_provider_prefix: bool = True,
-        tool_choice: str | None = "required",
+        # Upstream sets state.tool_choice = "any", but its solver pipeline
+        # calls model.generate(state.messages, state.tools) without it, so
+        # Inspect sends its default "auto". Match what is actually sent.
+        tool_choice: str | None = "auto",
     ):
         self.model = (
             _strip_provider(model_name) if strip_provider_prefix else model_name
