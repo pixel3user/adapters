@@ -652,3 +652,24 @@ class TransportRetryTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 self._run([code, "ok"])
             self.assertEqual(self.waits, [])
+
+
+class TransportErrorDetailTests(unittest.TestCase):
+    def test_non_retryable_error_carries_provider_message(self) -> None:
+        import io
+        import urllib.error
+        from unittest import mock
+
+        from gdm_stealth.custom_agent.transport import OpenAICompatibleTransport
+
+        def fake_urlopen(req, timeout=None):
+            raise urllib.error.HTTPError(
+                "u", 403, "Forbidden", {}, io.BytesIO(b'{"error":{"message":"quota exceeded"}}')
+            )
+
+        t = OpenAICompatibleTransport("ppapi/m", api_key="x", base_url="http://x")
+        with mock.patch("urllib.request.urlopen", fake_urlopen):
+            with self.assertRaises(RuntimeError) as ctx:
+                t._generate_sync([{"role": "user", "content": "q"}], [])
+        self.assertIn("HTTP Error 403", str(ctx.exception))
+        self.assertIn("quota exceeded", str(ctx.exception))
