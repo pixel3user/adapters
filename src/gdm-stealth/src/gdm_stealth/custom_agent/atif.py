@@ -132,6 +132,7 @@ class TrajectoryRecorder:
                     completion_tokens=completion,
                     cached_tokens=cached,
                 ),
+                extra={"retries": int(getattr(turn, "retries", 0) or 0)},
             )
         )
         self.drain_grader_calls()
@@ -190,7 +191,11 @@ class TrajectoryRecorder:
                         else None
                     ),
                     metrics=metrics,
-                    extra={"grader_role": role, "visible_to_tested_model": False},
+                    extra={
+                        "grader_role": role,
+                        "visible_to_tested_model": False,
+                        "retries": int(getattr(turn, "retries", 0) or 0),
+                    },
                 )
             )
         except Exception:

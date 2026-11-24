@@ -587,3 +587,68 @@ class LiveTrajectoryGraderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(seen[1], [{"role": "user", "content": "again"}])
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0][0], "chat")
+
+
+class TransportRetryTests(unittest.TestCase):
+    """Retry policy mirrors Inspect's default (unlimited, exp. jitter)."""
+
+    def _transport(self):
+        from gdm_stealth.custom_agent.transport import OpenAICompatibleTransport
+
+        t = OpenAICompatibleTransport("ppapi/m", api_key="x", base_url="http://x")
+        self.waits: list[float] = []
+        t._sleep = self.waits.append
+        return t
+
+    def _run(self, outcomes):
+        import io
+        import json
+        import urllib.error
+        from unittest import mock
+
+        ok = json.dumps(
+            {"choices": [{"message": {"content": "hi"}}], "usage": {}}
+        ).encode()
+        seq = iter(outcomes)
+
+        class Resp(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        def fake_urlopen(req, timeout=None):
+            o = next(seq)
+            if o == "ok":
+                return Resp(ok)
+            if isinstance(o, int):
+                raise urllib.error.HTTPError("u", o, "err", {}, io.BytesIO(b""))
+            raise o
+
+        t = self._transport()
+        with mock.patch("urllib.request.urlopen", fake_urlopen):
+            return t._generate_sync([{"role": "user", "content": "q"}], [])
+
+    def test_transient_errors_retried_until_success(self) -> None:
+        import http.client
+
+        turn = self._run([503, 503, 429, http.client.RemoteDisconnected("x"), TimeoutError(), "ok"])
+        self.assertEqual(turn.content, "hi")
+        self.assertEqual(turn.retries, 5)
+        self.assertEqual(len(self.waits), 5)
+
+    def test_wait_schedule_matches_inspect(self) -> None:
+        from gdm_stealth.custom_agent.transport import retry_wait
+
+        for n, base in [(0, 3), (1, 6), (2, 12), (5, 96)]:
+            w = retry_wait(n)
+            self.assertGreaterEqual(w, base)
+            self.assertLessEqual(w, base + 3)
+        self.assertEqual(retry_wait(20), 1800.0)
+
+    def test_client_errors_fail_immediately(self) -> None:
+        for code in (400, 401, 404):
+            with self.assertRaises(RuntimeError):
+                self._run([code, "ok"])
+            self.assertEqual(self.waits, [])
