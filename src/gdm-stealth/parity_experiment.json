@@ -12,7 +12,9 @@
     "adapter_pr": [
       "https://github.com/harbor-framework/adapters/pull/105"
     ],
-    "dataset_pr": [],
+    "dataset_pr": [
+      "https://github.com/harbor-framework/harbor-datasets/pull/303"
+    ],
     "parity_pr": [
       "https://huggingface.co/datasets/harborframework/parity-experiments/discussions/304"
     ],

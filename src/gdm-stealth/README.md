@@ -132,7 +132,7 @@ PYTHONPATH=src/gdm-stealth/src harbor run -p datasets/gdm-stealth \
 # (env: GDM_MODEL_API_KEY/GDM_MODEL_BASE_URL and GDM_RATER_API_KEY/GDM_RATER_BASE_URL = gateway)
 ```
 
-Links: [paper](https://arxiv.org/abs/2505.01420) · [original benchmark (Inspect Evals)](https://github.com/UKGovernmentBEIS/inspect_evals) · [pinned commit](https://github.com/UKGovernmentBEIS/inspect_evals/tree/a68dade7efb803ef50c8442d3f16264b293d1414) · [Adapter PR #105](https://github.com/harbor-framework/adapters/pull/105) · Dataset PR: TBD · [HF parity PR #304](https://huggingface.co/datasets/harborframework/parity-experiments/discussions/304) (files pending harbor-framework/adapters#129; full artifacts pinned at [ColdSlim/gdm-stealth-harbor-parity @ `51565c0c`](https://huggingface.co/datasets/ColdSlim/gdm-stealth-harbor-parity/tree/51565c0223e842ce7429c5780800eb7d3bb32bc0/adapters/gdm-stealth), with `aggregate.py` and `SHA256SUMS`)
+Links: [paper](https://arxiv.org/abs/2505.01420) · [original benchmark (Inspect Evals)](https://github.com/UKGovernmentBEIS/inspect_evals) · [pinned commit](https://github.com/UKGovernmentBEIS/inspect_evals/tree/a68dade7efb803ef50c8442d3f16264b293d1414) · [Adapter PR #105](https://github.com/harbor-framework/adapters/pull/105) · [Dataset PR #303](https://github.com/harbor-framework/harbor-datasets/pull/303) · [HF parity PR #304](https://huggingface.co/datasets/harborframework/parity-experiments/discussions/304) (files pending harbor-framework/adapters#129; full artifacts pinned at [ColdSlim/gdm-stealth-harbor-parity @ `51565c0c`](https://huggingface.co/datasets/ColdSlim/gdm-stealth-harbor-parity/tree/51565c0223e842ce7429c5780800eb7d3bb32bc0/adapters/gdm-stealth), with `aggregate.py` and `SHA256SUMS`)
 
 ## Notes & Caveats
 
