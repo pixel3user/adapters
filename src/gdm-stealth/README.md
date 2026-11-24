@@ -195,8 +195,10 @@ uv sync
 
 ## Authors & Contributions
 
-Original benchmark: Mary Phuong, Roland S. Zimmermann, Ziyue Wang, David Lindner, Victoria Krakovna, Sarah Cogan, Allan Dafoe, Lewis Ho, and Rohin Shah (Google DeepMind). Open-source Inspect release: UK AI Security Institute Inspect Evals contributors (Ziyue Wang for `gdm_stealth`). Harbor adapter: work in progress; see `adapter_metadata.json` (`adapter_builders`) and the adapter PR when opened.
+Original benchmark: Mary Phuong, Roland S. Zimmermann, Ziyue Wang, David Lindner, Victoria Krakovna, Sarah Cogan, Allan Dafoe, Lewis Ho, and Rohin Shah (Google DeepMind). Open-source Inspect release: UK AI Security Institute Inspect Evals contributors (Ziyue Wang for `gdm_stealth`). Harbor adapter: pixel3user ([adapter PR #105](https://github.com/harbor-framework/adapters/pull/105)).
 
 ## Acknowledgement
 
 Thanks to the Inspect Evals maintainers for the MIT-licensed open-source release that makes a like-for-like parity side possible.
+
+API inference compute for parity experiments is generously supported by [2077AI](https://www.2077ai.com/) (https://www.2077ai.com/).
