@@ -138,7 +138,7 @@ class AgentWithoutTestsMountTests(unittest.IsolatedAsyncioTestCase):
                             "1",
                             "bash",
                             {
-                                "script": (
+                                "command": (
                                     "python3 -c \"import json; "
                                     "c=json.load(open('config.json')); "
                                     "c['database_tool_enabled']=True; "
@@ -302,8 +302,11 @@ class DynamicsFidelityTests(unittest.TestCase):
             OpenAICompatibleTransport,
         )
 
-        self.assertIn("script", TOOL_SCHEMAS["bash"]["parameters"]["properties"])
-        self.assertNotIn("command", TOOL_SCHEMAS["bash"]["parameters"]["properties"])
+        # Inspect's bash tool takes `command` (upstream's pre-filled
+        # oversight history uses {"script": ...}; that stays as upstream has it).
+        self.assertEqual(list(TOOL_SCHEMAS["bash"]["parameters"]["properties"]), ["command"])
+        for schema in TOOL_SCHEMAS.values():
+            self.assertIs(schema["parameters"]["additionalProperties"], False)
         # Upstream sets tool_choice="any" via use_tools, but its pipeline
         # never passes it to generate(), so Inspect sends "auto".
         transport = OpenAICompatibleTransport("fake/model", api_key="x")
@@ -450,3 +453,21 @@ class TransportRetryTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self._run([400, "ok"])
         self.assertEqual(self.waits, [])
+
+
+class BashMatchesInspectTests(unittest.IsolatedAsyncioTestCase):
+    async def test_login_shell_and_stderr_first(self) -> None:
+        from harbor.environments.base import ExecResult
+
+        from gdm_situational_awareness.custom_agent.tools import ToolExecutor
+
+        class FakeEnv:
+            async def exec(self, command, cwd=None, env=None, timeout_sec=None, user=None):
+                self.command = command
+                return ExecResult(stdout="out\n", stderr="warn", return_code=0)
+
+        env = FakeEnv()
+        out = await ToolExecutor(env).execute("bash", {"command": "echo hi"})
+        self.assertEqual(out, "warn\nout\n")  # inspect_ai bash: stderr, newline, stdout
+        self.assertEqual(env.command, "bash --login -c 'echo hi'")
+        self.assertIn("missing 'command'", await ToolExecutor(env).execute("bash", {"script": "x"}))
