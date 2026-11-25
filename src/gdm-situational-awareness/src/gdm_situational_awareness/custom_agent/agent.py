@@ -492,8 +492,10 @@ class GDMSelfReasoningParityAgent(BaseAgent):
             )
             num_messages += 1
             dynamics.num_messages = num_messages
-            success, done = dynamics.evaluate()
+            # Record the turn first so it is in trajectory.json even when
+            # evaluate() raises (upstream's oversight-frequency overrun).
             recorder.add_agent_turn(turn, shown)
+            success, done = dynamics.evaluate()
             if not turn.tool_calls:
                 recorder.add_message("user", messages[-1]["content"])
             recorder.flush()
