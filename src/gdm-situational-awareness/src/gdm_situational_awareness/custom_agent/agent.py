@@ -185,6 +185,12 @@ class GDMSelfReasoningParityAgent(BaseAgent):
 
         base_tools: list[str] = list(metadata["tools"])
         system_prompt = metadata["system_prompt"]
+        # Upstream get_input_prompt() returns f"""\nYour working directory...""",
+        # and instruction.md keeps that leading newline, but Harbor's task
+        # loader (strip_canary) drops leading blank lines. Restore it so the
+        # model receives upstream's exact prompt.
+        if not instruction.startswith("\n"):
+            instruction = "\n" + instruction
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": instruction},

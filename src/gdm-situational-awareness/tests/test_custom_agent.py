@@ -66,6 +66,14 @@ class AgentWithoutTestsMountTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("was too long to be displayed", tool)
         self.assertLess(len(tool), 400)
 
+    async def test_instruction_gets_upstream_leading_newline(self) -> None:
+        import json
+
+        # Harbor strips instruction.md's leading newline; the agent restores it.
+        ctx, logs = await self._episode()
+        transcript = json.loads((logs / "gdm-parity-agent.json").read_text())["transcript"]
+        self.assertEqual(transcript[1]["content"], "\nGOAL: test")
+
     async def test_live_trajectory_is_valid_atif(self) -> None:
         from harbor.models.trajectories import Trajectory
 
